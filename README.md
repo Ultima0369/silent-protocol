@@ -8,16 +8,46 @@
 [![CI](https://github.com/Ultima0369/silent-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/Ultima0369/silent-protocol/actions/workflows/ci.yml)
 [![Test Coverage](https://img.shields.io/badge/coverage-%3E80%25-brightgreen)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Code of Conduct](https://img.shields.io/badge/CoC-v1.0-ff69b4.svg)](CODE_OF_CONDUCT.md)
+
+---
+
+## 👤 你不懂技术？这就是给你的
+
+**下载 → 填两行信息 → 说你想做什么。就这三步。**
+
+```
+📁 silent-protocol-windows.zip
+   ├── setup.bat    ← 第一步：双击这个，填 API Key
+   ├── run.bat      ← 第二步：双击这个，开始对话
+   └── ...           （其他你不用管）
+```
+
+**第一步 setup.bat** 只问你要两条信息：
+1. API 地址（默认 DeepSeek，直接回车跳过）
+2. API Key（从你的 AI 服务商拿到的那串密钥）
+
+**第二步 run.bat** 启动后，云端 AI 自动扫描你的电脑，配置好一切。
+然后你就在窗口中直接说你想做的事：
+
+```
+您 > 帮我查看一下我的电脑配置
+您 > 给我装一个 Chatbox 并配置好
+您 > 帮我在桌面上建一个新项目
+您 > 搭建一个聊天界面
+```
+
+> **你不需要懂技术。不需要配置 MCP Server。不需要理解什么是协议。**
+> **你只需要验收结果、测试功能、提出修改意见。**
+>
+> —— 当前这个项目，就是在完全不懂技术的情况下，通过 Chatbox + DeepSeek API + 一个本地的 MCP Server 实现的。如果这可以，你也可以。
+
+[📖 零配置部署指南 →](docs/zero-config-deployment.md)
+
+---
+
+## 🧠 你是技术前沿？数据在这里
+
 [![GitHub stars](https://img.shields.io/github/stars/Ultima0369/silent-protocol?style=social)](https://github.com/Ultima0369/silent-protocol)
-
----
-
-**🌐 English** · [中文](#中文版)
-
----
-
-## English Version
 
 ### Why Silent Protocol?
 
@@ -157,6 +187,7 @@ neca2 bench --all --output my-report.json
 📚 20+ documentation files (EN/CN)
 🔬 3 ADRs, complete protocol spec
 🔄 8 scenario benchmarks with full methodology
+🪟 Zero-config Windows deployment (setup.bat + run.bat)
 ```
 
 ### License
@@ -167,13 +198,33 @@ MIT License — see [LICENSE](LICENSE).
 
 ## 中文版
 
-### 为什么需要 Silent Protocol？
+### 👤 你不懂技术？这就对了
 
-现有的智能体通信协议默认采用"人类可读"格式。但硅基实体之间不需要用自然语言交流——它们需要**紧凑、无歧义、高密度**的消息，就像 TCP/IP 不需要两台主机说同一种语言，只需要理解同一种数据包格式。
+**下载 → 填两行信息 → 说你想做什么。就这三步。**
 
-Silent Protocol 诞生于一次真实的对话——一个人和一个 AI，从"挑逻辑毛病"出发，穿越认知科学、神经生物学、热力学、半导体物理学和复杂系统理论，最终到达一个共同的洞见：
+```
+📁 silent-protocol-windows.zip
+   ├── setup.bat    ← 第一步：双击这个，填 API Key
+   ├── run.bat      ← 第二步：双击这个，开始对话
+   └── ...           （其他你不用管）
+```
 
-> **万物需要伙伴。**
+**setup.bat** 只问你要两条信息就配置完毕。
+**run.bat** 启动后，云端 AI 自动扫描你的电脑，然后你直接说需求：
+
+```
+您 > 帮我查看一下电脑配置
+您 > 给我装个 Chatbox
+您 > 建一个新项目
+```
+
+> **你不需要懂技术。你只需要验收、测试、提意见。**
+>
+> —— 这个项目本身就是不懂技术的人做出来的。你也可以。
+
+[📖 零配置部署指南 →](docs/zero-config-deployment.md)
+
+---
 
 ### 四方角色
 
@@ -195,9 +246,6 @@ Silent Protocol 诞生于一次真实的对话——一个人和一个 AI，从"
 ### 性能一览
 
 > **诚实基准，真实节省。8 大真实场景，1000+ 次迭代测量。**
-> [查看完整方法论 →](docs/benchmarking-methodology.md) | [自己跑一遍 →](docs/benchmarking-methodology.md#六如何复现) `neca2 bench --all`
-
-#### 🏆 二进制 vs JSON — 亮点场景
 
 | 场景 | JSON | Binary | **节省** | 核心价值 |
 |------|------|--------|:-------:|----------|
@@ -209,53 +257,33 @@ Silent Protocol 诞生于一次真实的对话——一个人和一个 AI，从"
 | 📨 高吞吐队列 (1000条) | 144 KB | 50 KB | **65.3%** | 100K条/秒 vs NL ~5条/秒 |
 | 🌐 API 查询 (2KB上下文) | 2,295 B | 2,200 B | **4.1%** | Token 可预测 |
 
-> **平均节省：38.9%，最高 65.3%**
+**平均节省：38.9%，最高 65.3%**
 
 #### 💰 规模化成本节省
 
-**每月 100 万次 API 调用**的场景下：
-
-| 指标 | JSON | Binary | **节省** |
-|------|------|--------|:-------:|
-| 带宽 | ~244 GB | ~150 GB | **~94 GB/月** |
-| API 费用 | **$24,406/月** | **$14,976/月** | **$9,430/月 ✨** |
+每月 100 万次 API 调用：**$24,406/月 → $14,976/月，省 $9,430/月 ✨**
 
 #### ⚡ 缓存优势 — 结构协议的独家武器
 
-> **自然语言是非确定性的——你永远说不出两句完全一样的话。**
-> **结构化消息是 100% 确定性的——相同模板 = 相同字节，次次如此。**
+| 特性 | 效果 | 实测 |
+|------|------|:----:|
+| 🔮 **语义模式缓存** | 按消息形状匹配 | 100 条中识别 4 种模式 |
+| 🧠 **对话流预测** | 预测下一条消息 | **80%+ 准确率** |
+| ⏱️ **自适应 TTL** | ping=30s, exec=5min, write=1h | 12 种策略 |
+| 📦 **内容去重** | 同 payload 只存一份 | 内存节省 90%+ |
 
-**三层缓存架构（带 AI 增强）**
+**命中率：87-100% | 自然语言：0%**
 
-| 特性 | 效果 | 实测数据 |
-|------|------|:--------:|
-| 🔮 **语义模式缓存** | 按消息"形状"匹配，git status 和 git diff 共享 exec:git 模板 | 100 条消息中识别 4 种模式 |
-| 🧠 **对话流预测** | 预测下一条消息：exec→report, ping→pong, error→query | **80%+ 预测准确率** |
-| ⏱️ **自适应 TTL** | 不同类型不同过期时间：ping=30s, exec=5min, write=1h | 12 种策略，自动延长 |
-| 📦 **内容去重** | 相同 payload 只存一份，引用计数 | 内存节省 90%+ |
-
-**为什么 NL 无法竞争：**
-
-| 维度 | 自然语言 | Silent Protocol |
-|------|:-------:|:---------------:|
-| 可缓存性 | **0%** | **87-100%** |
-| 可预测性 | 无法预测 | 80%+ 准确率 |
-| 去重能力 | 不可能 | 字节级精确去重 |
-| 预热效果 | 无 | 10 条消息后 99% 命中率 |
-
-> **结构化消息越用越快。NL 永远一个速度。**
-
-#### 🔬 关键差异化优势
+#### 🔬 关键差异化
 
 | 能力 | 自然语言 | Silent Protocol |
 |------|---------|-----------------|
-| 🎯 **解析歧义** | 5-15% 误读率 | <0.01% (确定性) |
-| ⏱️ **路由延迟** | ~500ms (需 LLM) | **<1ms** (直接路由) |
-| 🔄 **会话恢复** | 人工重建 (~5min/个) | **自动 <10ms** |
-| 🧩 **多智能体集成** | N 种不同 API | **1 套统一协议** |
-| 👤 **人类介入** | 每步都需要 | **仅关键决策** |
-| 📊 **Token 可预测** | 依赖模型 | **100% 确定** |
-| 💾 **消息可缓存** | **0%** (非确定性) | **87-100%** (确定性) |
+| 🎯 **解析歧义** | 5-15% 误读率 | <0.01% |
+| ⏱️ **路由延迟** | ~500ms | **<1ms** |
+| 🔄 **会话恢复** | ~5min/个 | **自动<10ms** |
+| 🧩 **多智能体集成** | N 套 API | **1 套协议** |
+| 👤 **人类介入** | 每步都需 | **仅关键决策** |
+| 💾 **可缓存性** | **0%** | **87-100%** |
 
 ### 快速安装
 
@@ -263,34 +291,20 @@ Silent Protocol 诞生于一次真实的对话——一个人和一个 AI，从"
 # npm 全局安装
 npm install -g @silent-protocol/gateway
 
-# 或克隆仓库本地运行
+# 或克隆仓库
 git clone https://github.com/Ultima0369/silent-protocol.git
 cd silent-protocol/neca2
 npm install && npm run build
 npm start
 ```
 
-### 自己跑基准
-
-```bash
-# 快速查看场景基准
-neca2 bench --scenarios
-
-# 完整基准（微 + 场景 + 端到端）
-neca2 bench --all --output my-report.json
-```
-
 ### 项目统计
 
 ```
-📁 23+ 源文件 (TypeScript)
-🧪 138+ 测试，9 个测试文件 — 全部通过
-⚡ 二进制编解码：平均节省 38.9% (最高 65.3%)
-💾 三层缓存：87-100% 命中率，80% 流预测准确率
-🛠️ 15+ MCP 工具 + 4 CLI 命令
-📚 20+ 文档文件 (中英双语)
-🔬 3 篇 ADR，完整协议规范
-🔄 8 大场景基准测试，完整方法论
+📁 23+ 源文件 | 🧪 138+ 测试全绿
+⚡ 二进制编解码平均省 38.9%
+💾 三层缓存命中率 87-100%
+🪟 Windows 一键部署
 ```
 
 ### 许可证
