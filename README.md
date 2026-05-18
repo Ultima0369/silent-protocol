@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![npm version](https://img.shields.io/npm/v/@silent-protocol/gateway)](https://www.npmjs.com/package/@silent-protocol/gateway)
 [![CI](https://github.com/Ultima0369/silent-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/Ultima0369/silent-protocol/actions/workflows/ci.yml)
-[![Test Coverage](https://img.shields.io/badge/coverage-%3E80%25-brightgreen)]()
+[![Test Count](https://img.shields.io/badge/tests-236-green)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 ---
@@ -69,10 +69,12 @@ Silent Protocol was born from a real conversation — one human and one AI, star
 
 ### Core Innovations
 
-1. **Compact Protocol** — Zero-ambiguity, high-density communication format for silicon entities. Currently using compact JSON with a planned binary upgrade path.
-2. **Tasting Loop** — Humans only intervene at key decision points, never in the process noise. Avoids "physiological hijacking" and decision fatigue.
-3. **Heterogeneous Quad-Party Collaboration** — Cross-model, cross-provider, cross-cloud/local-boundary architecture. Leverages cognitive diversity for broader solution space coverage.
-4. **neca as Communication Gateway** — Unified message routing, protocol translation, session management, and security auditing.
+1. **Compact Protocol** — Zero-ambiguity, high-density communication format for silicon entities. Binary codec averages **38.9% savings** vs JSON (up to 65.3% for high-throughput).
+2. **User Sovereignty Permission System** — Dynamic L0-L5 security levels (lock/read/exec/write/admin/trust). Users change AI permissions mid-conversation. One-shot, session, or persistent. True user agency.
+3. **Intent Execution Protocol** — Say what you want, AI auto-plans and executes. Tasting loop: user only verifies results, never watches the process.
+4. **Tasting Loop** — Humans only intervene at key decision points, never in the process noise. Avoids "physiological hijacking" and decision fatigue.
+5. **Heterogeneous Quad-Party Collaboration** — Cross-model, cross-provider, cross-cloud/local-boundary architecture. Leverages cognitive diversity for broader solution space coverage.
+6. **neca as Communication Gateway** — Unified message routing, protocol translation, session management, and security auditing.
 
 ### Performance at a Glance
 
@@ -125,10 +127,10 @@ Silent Protocol's **3-tier message cache** exploits this determinism with **Deep
 
 | Feature | What It Does | Measured Impact |
 |---------|-------------|:---------------:|
-| 🔮 **Semantic Pattern Cache** | Matches by message *shape* not exact key — `git status` and `git diff` share the `exec:git` template | 4 patterns recognized in 100-msg test |
-| 🧠 **Conversation Flow Prediction** | Predicts next message with 80%+ accuracy: exec→report, ping→pong, error→query | 5 predictions made in test run, **80% accuracy** |
-| ⏱️ **Adaptive TTL** | Different types auto-expire at different rates: ping=30s, exec=5min, write=1h. Hot entries live longer. | 12 policies, auto-extending |
-| 📦 **Content-Addressable Dedup** | Same payload stored once, referenced by hash. Saves 90%+ memory for repeated file writes. | 3 unique payloads in 100-msg test |
+| 🔮 **Semantic Pattern Cache** | Matches by message *shape* not exact key | 4 patterns recognized in 100-msg test |
+| 🧠 **Conversation Flow Prediction** | Predicts next message with 80%+ accuracy | **80% accuracy** |
+| ⏱️ **Adaptive TTL** | Different types auto-expire at different rates | 12 policies, auto-extending |
+| 📦 **Content-Addressable Dedup** | Same payload stored once, referenced by hash | 90%+ memory savings |
 
 **Why NL can't compete:**
 
@@ -152,6 +154,32 @@ Silent Protocol's **3-tier message cache** exploits this determinism with **Deep
 | 👤 **Human intervention rate** | Every step (10x for 10-step task) | **Key decisions only** |
 | 📊 **Token predictability** | Depends on model | **100% deterministic** |
 | 💾 **Message cacheability** | **0%** (non-deterministic) | **87-100%** (deterministic) |
+| 🔐 **User sovereignty** | All-or-nothing permissions | **L0-L5 dynamic, changeable mid-conversation** |
+
+### User Sovereignty Permission System
+
+Silent Protocol's permission system is the first to treat **user agency as a first-class protocol concern**:
+
+```
+L0 🔒 Locked     — Only ping/pong heartbeat
+L1 👁️ Read-only  — View files, search, no modification
+L2 ⚡ Exec       — Run whitelisted commands
+L3 ✏️ Write      — Create, modify files
+L4 🛠️ Admin      — Install software, configure system
+L5 🤝 Trust      — Unlimited, like an old friend
+```
+
+Change permissions **mid-conversation** — no restart needed. One-shot, session, or persistent. Path constraints for fine-grained control. The system honestly reports what it can and cannot do.
+
+```
+User > "从现在开始你只能读不能写"
+  → neca2_permission_set_level { level: 1, effect: 'session' }
+  → 响应: "已设置为 L1 只读。我可以查看文件，但不能执行或修改。"
+
+User > "好，现在你拥有完全信任权限"
+  → neca2_permission_trust { effect: 'session' }
+  → 响应: "🤝 已授予完全信任权限。我拥有了全部能力，如同老友。"
+```
 
 ### Quick Install
 
@@ -179,11 +207,13 @@ neca2 bench --all --output my-report.json
 ### Project Stats
 
 ```
-📁 23+ source files (TypeScript)
-🧪 138+ tests, 9 test files — all passing
+📁 26+ source files (TypeScript)
+🧪 236 tests, 15 test files — all passing
 ⚡ Binary codec: avg 38.9% savings vs JSON (up to 65.3%)
 💾 3-tier cache: 87-100% hit rate, 80% flow prediction accuracy
-🛠️ 15+ MCP tools + 4 CLI commands
+🔐 L0-L5 dynamic permission system
+🧠 Intent Execution Protocol — say what you want, AI does the rest
+🛠️ 30+ MCP tools + 4 CLI commands
 📚 20+ documentation files (EN/CN)
 🔬 3 ADRs, complete protocol spec
 🔄 8 scenario benchmarks with full methodology
@@ -238,10 +268,12 @@ MIT License — see [LICENSE](LICENSE).
 
 ### 核心创新
 
-1. **紧凑协议** — 硅基实体的零歧义、高密度通信格式
-2. **尝菜式反馈** — 人类只在关键决策点介入，不走过程噪声
-3. **异质四方协作** — 跨模型、跨提供方、跨云/本地边界的架构
-4. **neca 通信网关** — 统一消息路由、协议翻译、会话管理、安全审计
+1. **紧凑协议** — 硅基实体的零歧义、高密度通信格式，平均省 38.9%
+2. **用户主权权限系统** — L0-L5 动态权限等级，对话中随时调整，路径约束
+3. **意图执行协议** — 说你要什么，AI 自动规划执行。用户只验收结果
+4. **尝菜式反馈** — 人类只在关键决策点介入，不走过程噪声
+5. **异质四方协作** — 跨模型、跨提供方、跨云/本地边界的架构
+6. **neca 通信网关** — 统一消息路由、协议翻译、会话管理、安全审计
 
 ### 性能一览
 
@@ -284,6 +316,22 @@ MIT License — see [LICENSE](LICENSE).
 | 🧩 **多智能体集成** | N 套 API | **1 套协议** |
 | 👤 **人类介入** | 每步都需 | **仅关键决策** |
 | 💾 **可缓存性** | **0%** | **87-100%** |
+| 🔐 **用户主权** | 全有或全无 | **L0-L5 动态可调** |
+
+#### 🏛️ 用户主权权限系统
+
+Silent Protocol 的权限系统是首个将**用户主权作为协议一等公民**的设计：
+
+```
+L0 🔒 锁定     — 仅心跳，不可操作
+L1 👁️ 只读     — 查看文件，不可修改
+L2 ⚡ 执行     — 运行白名单命令
+L3 ✏️ 写入     — 创建/修改文件
+L4 🛠️ 管理     — 安装软件/配置系统
+L5 🤝 完全信任 — 如同老友，无限制
+```
+
+**对话中随时更改**，无需重启。一次性/本次会话/永久三种生效方式。系统诚实报告自己能做什么、不能做什么。
 
 ### 快速安装
 
@@ -301,9 +349,11 @@ npm start
 ### 项目统计
 
 ```
-📁 23+ 源文件 | 🧪 138+ 测试全绿
+📁 26+ 源文件 | 🧪 236 测试全绿 (15文件)
 ⚡ 二进制编解码平均省 38.9%
 💾 三层缓存命中率 87-100%
+🔐 L0-L5 动态用户主权权限系统
+🛠️ 30+ MCP 工具 + 4 CLI 命令
 🪟 Windows 一键部署
 ```
 
