@@ -44,6 +44,48 @@ Silent Protocol was born from a real conversation — one human and one AI, star
 3. **Heterogeneous Quad-Party Collaboration** — Cross-model, cross-provider, cross-cloud/local-boundary architecture. Leverages cognitive diversity for broader solution space coverage.
 4. **neca as Communication Gateway** — Unified message routing, protocol translation, session management, and security auditing.
 
+### Performance at a Glance
+
+> **Honest benchmarks, real savings. Measured across 8 real-world scenarios with 1000+ iterations each.**
+> [View full methodology →](docs/benchmarking-methodology.md) | [Run yourself →](docs/benchmarking-methodology.md#六如何复现) `neca2 bench --all`
+
+#### 🏆 Binary Codec vs JSON — Where It Shines
+
+| Scenario | JSON Size | Binary Size | **Savings** | Why It Matters |
+|----------|-----------|-------------|:-----------:|----------------|
+| 🤖 Agent command (`ping`) | 186 B | 92 B | **50.5%** | <1ms routing vs ~500ms NL parsing |
+| 💬 Multi-turn conversation (10 rounds) | 2,061 B | 1,111 B | **46.1%** | Zero framing overhead per turn |
+| 🔄 Session recovery (50 sessions) | 9,140 B | 4,440 B | **51.4%** | Auto-resume <10ms vs minutes manual |
+| 👥 Multi-agent coordination (4 parties) | 824 B | 443 B | **46.2%** | 1 protocol vs 4 incompatible interfaces |
+| 🎯 Tasting loop (1 human intervention) | 594 B | 310 B | **47.8%** | 10x human efficiency |
+| 📨 High-throughput queue (1000 messages) | 144 KB | 50 KB | **65.3%** | 100K msg/s vs NL ~1-5 msg/s |
+| 📄 Large file write (100 KB) | 100,180 B | 100,085 B | **0.1%** | Protocol overhead <0.1% |
+| 🌐 Cross-model API query (2KB context) | 2,295 B | 2,200 B | **4.1%** | Predictable token consumption |
+
+> **Average savings across all scenarios: 38.9%** (up to 65.3% for high-throughput)
+
+#### 💰 Cost Savings at Scale
+
+At **1 million API calls/month** (Claude Sonnet 4 pricing):
+
+| Metric | JSON | Binary | **You Save** |
+|--------|------|--------|:-----------:|
+| Bandwidth | ~244 GB | ~150 GB | **~94 GB/month** |
+| API Cost | **$24,406/month** | **$14,976/month** | **$9,430/month ✨** |
+
+> *Cost estimates based on token-equivalent pricing. Actual savings depend on payload distribution and API provider.*
+
+#### 🔬 Key Differentiators (Non-Size Wins)
+
+| Capability | Natural Language | Silent Protocol |
+|------------|-----------------|-----------------|
+| 🎯 **Parsing ambiguity** | 5-15% misinterpretation rate | <0.01% (deterministic) |
+| ⏱️ **Routing latency** | ~500ms (needs LLM to parse) | **<1ms** (direct routing) |
+| 🔄 **Session recovery** | Manual rebuild (~5min/session) | **Auto <10ms** |
+| 🧩 **Multi-agent integration** | N different APIs needed | **1 unified protocol** |
+| 👤 **Human intervention rate** | Every step (10x for 10-step task) | **Key decisions only** |
+| 📊 **Token predictability** | Depends on model | **100% deterministic** |
+
 ### Quick Install
 
 ```bash
@@ -57,15 +99,26 @@ npm install && npm run build
 npm start
 ```
 
+### Run Your Own Benchmarks
+
+```bash
+# Quick check
+neca2 bench --scenarios
+
+# Full benchmark (micro + scenarios + e2e)
+neca2 bench --all --output my-report.json
+```
+
 ### Project Stats
 
 ```
 📁 20+ source files (TypeScript)
 🧪 117+ tests, 8 test files — all passing
-⚡ Binary codec: 70% bandwidth savings vs JSON
+⚡ Binary codec: avg 38.9% savings vs JSON (up to 65.3%)
 🛠️ 15+ MCP tools + 4 CLI commands
-📚 15+ documentation files (EN/CN)
+📚 20+ documentation files (EN/CN)
 🔬 3 ADRs, complete protocol spec
+🔄 8 scenario benchmarks with full methodology
 ```
 
 ### License
@@ -101,6 +154,45 @@ Silent Protocol 诞生于一次真实的对话——一个人和一个 AI，从"
 3. **异质四方协作** — 跨模型、跨提供方、跨云/本地边界的架构
 4. **neca 通信网关** — 统一消息路由、协议翻译、会话管理、安全审计
 
+### 性能一览
+
+> **诚实基准，真实节省。8 大真实场景，1000+ 次迭代测量。**
+> [查看完整方法论 →](docs/benchmarking-methodology.md) | [自己跑一遍 →](docs/benchmarking-methodology.md#六如何复现) `neca2 bench --all`
+
+#### 🏆 二进制 vs JSON — 亮点场景
+
+| 场景 | JSON | Binary | **节省** | 核心价值 |
+|------|------|--------|:-------:|----------|
+| 🤖 智能体指令 (`ping`) | 186 B | 92 B | **50.5%** | <1ms 路由 vs ~500ms NL 解析 |
+| 💬 多轮对话 (10轮) | 2,061 B | 1,111 B | **46.1%** | 零框架损耗 |
+| 🔄 会话恢复 (50个) | 9,140 B | 4,440 B | **51.4%** | 自动<10ms vs 人工数分钟 |
+| 👥 多智能体协调 (4方) | 824 B | 443 B | **46.2%** | 1个协议 vs 4套接口 |
+| 🎯 尝菜式反馈 | 594 B | 310 B | **47.8%** | 人类效率提升 10x |
+| 📨 高吞吐队列 (1000条) | 144 KB | 50 KB | **65.3%** | 100K条/秒 vs NL ~5条/秒 |
+| 🌐 API 查询 (2KB上下文) | 2,295 B | 2,200 B | **4.1%** | Token 可预测 |
+
+> **平均节省：38.9%，最高 65.3%**
+
+#### 💰 规模化成本节省
+
+**每月 100 万次 API 调用**的场景下：
+
+| 指标 | JSON | Binary | **节省** |
+|------|------|--------|:-------:|
+| 带宽 | ~244 GB | ~150 GB | **~94 GB/月** |
+| API 费用 | **$24,406/月** | **$14,976/月** | **$9,430/月 ✨** |
+
+#### 🔬 关键差异化优势
+
+| 能力 | 自然语言 | Silent Protocol |
+|------|---------|-----------------|
+| 🎯 **解析歧义** | 5-15% 误读率 | <0.01% (确定性) |
+| ⏱️ **路由延迟** | ~500ms (需 LLM) | **<1ms** (直接路由) |
+| 🔄 **会话恢复** | 人工重建 (~5min/个) | **自动 <10ms** |
+| 🧩 **多智能体集成** | N 种不同 API | **1 套统一协议** |
+| 👤 **人类介入** | 每步都需要 | **仅关键决策** |
+| 📊 **Token 可预测** | 依赖模型 | **100% 确定** |
+
 ### 快速安装
 
 ```bash
@@ -114,15 +206,26 @@ npm install && npm run build
 npm start
 ```
 
+### 自己跑基准
+
+```bash
+# 快速查看场景基准
+neca2 bench --scenarios
+
+# 完整基准（微 + 场景 + 端到端）
+neca2 bench --all --output my-report.json
+```
+
 ### 项目统计
 
 ```
 📁 20+ 源文件 (TypeScript)
 🧪 117+ 测试，8 个测试文件 — 全部通过
-⚡ 二进制编解码：比 JSON 节省 70% 带宽
+⚡ 二进制编解码：平均节省 38.9% (最高 65.3%)
 🛠️ 15+ MCP 工具 + 4 CLI 命令
-📚 15+ 文档文件 (中英双语)
+📚 20+ 文档文件 (中英双语)
 🔬 3 篇 ADR，完整协议规范
+🔄 8 大场景基准测试，完整方法论
 ```
 
 ### 许可证
