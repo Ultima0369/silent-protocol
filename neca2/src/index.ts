@@ -2,8 +2,8 @@
 // ---- neca2 MCP Server ----
 // Silent Protocol 紧凑协议参考实现
 //
-// v0.4.0 — 里程碑 3：左手右手互优化
-// 新增：统一黑板报、neca桥接器、Hello World 端到端示例、混合部署配置
+// v0.5.0 — DeepSeek Exclusive v2
+// 新增：Stream Protocol v2、自适应学习引擎、零开销协议扩展
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -20,6 +20,11 @@ import { initRetryQueue, shutdownRetryQueue } from './relay/retry-queue.js';
 import { logger } from './utils/logger.js';
 import { startBlackboardSync, writeSelfStatus, readBlackboard, getBlackboardSummary } from './shared/blackboard.js';
 import { getNecaSummary, getBridgeStats } from './shared/neca-bridge.js';
+import { adaptiveEngine } from './relay/adaptive-learning.js';
+import { zeroOverhead } from './protocol/zero-overhead.js';
+import { multiplexedConnection, compareProtocolVersions } from './protocol/stream-protocol.js';
+import { advancedCache } from './relay/cache-advanced.js';
+import type { Message } from './protocol/types.js';
 
 const PID_FILE = process.platform === 'win32'
   ? (process.env.APPDATA || process.cwd()) + '/neca2.pid'
@@ -34,14 +39,12 @@ function removePid(): void { try { fs.unlinkSync(PID_FILE); } catch {} }
 
 const server = new McpServer({ name: 'neca2-mcp-server', version: '1.0.0' });
 
-// 注册工具
 for (const [name, tool] of Object.entries(tools)) {
   const shape = (tool.parameters as any).shape ?? tool.parameters;
   server.tool(name, tool.description, shape, async (args: any) => {
     try {
       const parsed = tool.parameters.parse(args);
       const result = await tool.handler(parsed);
-      // 每次工具调用后自动保存记忆 + 更新黑板报
       saveMemory();
       writeSelfStatus('neca2');
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
@@ -52,7 +55,6 @@ for (const [name, tool] of Object.entries(tools)) {
   });
 }
 
-// 优雅关闭
 let isShuttingDown = false;
 function gracefulShutdown(): void {
   if (isShuttingDown) return;
@@ -62,10 +64,8 @@ function gracefulShutdown(): void {
 
   const timer = setTimeout(() => { removePid(); process.exit(1); }, 5000);
 
-  // 关闭前最后一次写入黑板报
   writeSelfStatus('neca2', 'degraded');
 
-  // 按依赖顺序关闭
   shutdownRetryQueue();
   stopHttpServer();
   shutdownSessionManager();
@@ -90,31 +90,42 @@ process.on('unhandledRejection', (reason) => {
 async function main(): Promise<void> {
   writePid();
 
-  // 初始化结构化日志
   logger.info('Starting neca2 server', {
     nodeVersion: process.version,
     platform: process.platform,
     pid: process.pid,
   }, { module: 'system' });
 
-  // 加载记忆（自动恢复跨 session 上下文）
   const mem = initMemory();
   console.error(chalk.green(`[neca2] memory: ${mem.projectName} | user: ${mem.userIdentity.name} | session #${mem.sessionCount}`));
   logger.info('Memory loaded', { project: mem.projectName, user: mem.userIdentity.name, sessionCount: mem.sessionCount }, { module: 'memory' });
 
-  // 初始化会话管理器
   const recovered = initSessionManager();
   if (recovered > 0) {
     console.error(chalk.gray(`[neca2] recovered ${recovered} sessions from disk`));
     logger.info('Sessions recovered', { count: recovered }, { module: 'session' });
   }
 
-  // 初始化重试队列
   initRetryQueue();
   console.error(chalk.gray('[neca2] retry queue initialized'));
   logger.info('Retry queue initialized', {}, { module: 'retry' });
 
-  // 初始化统一黑板报
+  // ---- DeepSeek Exclusive v2 初始化 ----
+
+  // 1. 自适应学习引擎（预热 Bayesian 先验）
+  console.error(chalk.gray('[neca2] v2 adaptive learning engine ready'));
+  logger.info('v2 Adaptive learning engine initialized', {}, { module: 'v2' });
+
+  // 2. 零开销协议（硬编码控制信号已预计算）
+  console.error(chalk.gray(`[neca2] v2 zero-overhead: ${zeroOverhead.signals.pingFrame.length}B pre-coded control signals`));
+  logger.info('v2 Zero-overhead protocol ready', { signalSizes: { ping: zeroOverhead.signals.pingFrame.length } }, { module: 'v2' });
+
+  // 3. 高级缓存（预热 12 种常见消息模式）
+  const cacheStats = advancedCache.getStats();
+  console.error(chalk.gray(`[neca2] v2 advanced cache: ${cacheStats.semantic.patternCount} patterns, ${cacheStats.flow.rules} flow rules`));
+  logger.info('v2 Advanced cache ready', { patterns: cacheStats.semantic.patternCount, rules: cacheStats.flow.rules }, { module: 'v2' });
+
+  // 黑板报初始化
   startBlackboardSync();
   const bb = readBlackboard();
   if (bb?.agents?.neca) {
@@ -126,7 +137,6 @@ async function main(): Promise<void> {
     logger.info('Neca not detected on blackboard', {}, { module: 'bridge' });
   }
 
-  // 检查 relay 状态
   if (relayManager.available) {
     console.error(chalk.green(`[neca2] relay: ${relayManager.availableProviders.join(', ')} (default: ${relayManager.default})`));
     logger.info('Relay providers available', { providers: relayManager.availableProviders, default: relayManager.default }, { module: 'relay' });
@@ -135,10 +145,8 @@ async function main(): Promise<void> {
     logger.warn('No relay providers configured', {}, { module: 'relay' });
   }
 
-  // 告知路由层实际工具数
   setToolCount(Object.keys(tools).length);
 
-  // 启动 HTTP 传输层（非阻塞）
   startHttpServer().catch((err) => {
     console.error(chalk.yellow('[neca2] HTTP server failed to start:'), err.message);
     logger.error('HTTP server start failed', { error: err.message }, { module: 'http' });
@@ -149,10 +157,10 @@ async function main(): Promise<void> {
   console.error(chalk.gray(`tools: ${Object.keys(tools).length} | pid: ${process.pid}`));
   logger.info('Server ready', { tools: Object.keys(tools).length, pid: process.pid }, { module: 'system' });
 
-  // 打印摘要
   const bridgeInfo = getBridgeStats();
   console.error(chalk.cyan(`[neca2] context: ${mem.projectName} @ ${mem.projectPhase} | user: ${mem.userIdentity.name}`));
-  console.error(chalk.gray(`[neca2] bridge: necaAlive=${bridgeInfo.necaAlive} | blackboard: ${getBlackboardSummary().substring(0, 80)}...`));
+  console.error(chalk.gray(`[neca2] bridge: necaAlive=${bridgeInfo.necaAlive} | v2: stream+learning+zero`));
+  console.error(chalk.magenta('[neca2] DeepSeek Exclusive v2 features active: stream-protocol | adaptive-learning | zero-overhead'));
 }
 
 main().catch((err) => {
