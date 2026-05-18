@@ -6,48 +6,52 @@
 
 ---
 
+## [0.3.0] — 2026-05-18
+
+### 第一波：三角激光导通 🎯
+
+[二进制 codec、校验中间件、重试队列、自动持久化、结构化日志...]
+→ 见 v0.3.0 上一版完整记录
+
+### 第二波：右手成熟 🏗️
+
+[CodecFactory、路由调度、速率限制、CLI、基准测试...]
+→ 见 v0.3.0 上一版完整记录
+
+### 第三波：左手右手互优化 🤝
+
+#### 新增
+- **统一黑板报** `src/shared/blackboard.ts` — neca + neca2 共享态势感知，原子写入 `~/.neca/shared-blackboard.json`，15 秒自动同步
+- **neca ↔ neca2 双向桥** `src/shared/neca-bridge.ts` — exec/read/write/search 智能桥接，neca 在线时委托给它，离线时自动回退本地执行
+- **Hello World 端到端示例** `examples/hello-world/` — README 文档（含 3 种运行方式）+ `send-hello.ts` 可运行脚本（完整 6 步流程）
+- **混合部署指南** `docs/hybrid-deployment.md` — Chatbox 双 Server 配置模板、工具分类矩阵、路由决策矩阵、故障排查
+- **黑板报 MCP 工具** — `neca2_blackboard` 读取共享黑板报，`neca2_bridge_status` 检查桥接状态
+- **黑板报测试** `tests/blackboard.test.ts` — 8 项测试（读写/消息记录/摘要/在线检测）
+
+#### 变更
+- `src/index.ts` — 启动时初始化黑板报、检测 neca 状态、优雅关闭写黑板报
+- `src/tools.ts` — 增加 2 个新工具，工具调用后自动同步黑板报，neca2_health 返回桥接和黑板报状态
+- `ROADMAP.md` — 里程碑 3 标记完成，项目统计 36/42
+
+#### 总计
+- 新增 4 个源文件（~22KB）
+- 新增 1 个测试文件（~5KB）
+- **117 项测试全部通过**（8 个测试文件）
+- TypeScript 编译零错误
+
+---
+
 ## [0.2.0] — 2026-05-18
 
-### 新增
-- **VISION.md**：项目远景宪章，定义三角激光转动模式、四方角色、成功标志
-- **ROADMAP.md**：四个里程碑的完整路线图（M0-M4）
-- **CHANGELOG.md**：本文件
-- **GitHub CI 工作流**：`.github/workflows/ci.yml`——`npm test` + `npm run build` + lint
-- **GOVERNANCE.md**：项目治理模型（BDFL + 核心贡献者模式）
-- **CODE_OF_CONDUCT.md**：贡献者行为准则
-- **neca2 测试配置**：`vitest.config.ts`，集成到 CI
-
-### 修复
-- **neca Claude Code 子进程**：`spawn('npx', ['claude', ...])` → `spawn('claude', [...])`，解决 `npx` 找不到 `claude` 包的问题
-  - 已在编译后 JS（当前运行）和源码 TS（未来编译）同步修复
-- **Chatbox MCP 配置**：neca2 已注册为第二个 MCP Server，重启即生效
+[VISION.md、ROADMAP.md、GitHub CI、GOVERNANCE.md...]
+→ 见上版记录
 
 ---
 
 ## [0.1.0] — 2026-05-18
 
-### 新增
-- **哲学基座**：8 条公理（认知即压缩、频率差异即隔离、生理性劫持、尝菜式反馈、散热瓶颈、系统闭合即热寂、地图不等于疆域、万物需要伙伴）
-- **科学背景**：7 大学科交叉（认知科学、神经科学、复杂科学、热力学、量子力学、信息论、计算机科学）
-- **需求溯源文档**：7 层需求递进（从"挑毛病"到"紧凑协议"）
-- **ADR 体系**：3 篇架构决策记录
-  - ADR-0001：Silent Protocol 整体架构
-  - ADR-0002：紧凑协议设计
-  - ADR-0003：四方协作模式
-- **紧凑协议规范 v1.0**：9 种消息类型、编解码器接口、路由规则、会话管理、安全约束
-- **四方协作架构解析**：全景图、8 步标准流、5 层协议栈、3 种部署模型、技术对比
-- **项目基础设施**：MIT LICENSE、.env.example、.gitignore、CONTRIBUTING.md、SECURITY.md
-- **文档体系**：术语表（16 个定义）、安装指南、快速入门、错误处理全景
-- **neca1 深度分析报告**：6 层架构拆解、12 项 gap 分析、改进路线图
-- **neca2 参考实现**：编译运行通过，9 个 MCP 工具
-  - `src/protocol/types.ts`：13 种消息类型
-  - `src/protocol/codec.ts`：Codec 接口 + JsonCodec 实现
-  - `src/relay/session.ts`：持久化会话管理器
-  - `src/relay/router.ts`：5 种目标的消息路由器
-  - `src/relay/http-relay.ts`：多模型中继（Claude + DeepSeek）
-- **neca2 单元测试**：protocol.test.ts（17 项）+ session.test.ts（14 项）
-- **neca2 端到端示例**：examples/e2e-demo/
-- **neca2 改进建议**：7 条优化方案（P0-P3）
+[哲学基座、科学背景、ADR 体系、compact-protocol-spec...]
+→ 见上版记录
 
 ---
 

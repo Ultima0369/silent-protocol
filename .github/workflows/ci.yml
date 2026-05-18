@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
 
@@ -27,18 +28,72 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint (TypeScript compilation)
+      - name: TypeScript compilation check
         run: npx tsc --noEmit
-        continue-on-error: true  # 初期阶段允许 lint 失败
 
       - name: Run unit tests
         run: npm test
 
+      - name: Run coverage
+        run: npm run test:coverage
+
       - name: Build
         run: npm run build
 
-      - name: Verify dist
-        run: node dist/index.js --version 2>&1 || node -e "require('./dist/index.js')" 2>&1 || echo "Server loaded (expected no --version flag)"
+      - name: Verify CLI
+        run: node dist/cli.js version
 
-      - name: Check dist artifacts
-        run: ls -la dist/ && echo "---" && ls -la dist/protocol/ && echo "---" && ls -la dist/relay/
+      - name: Verify dist artifacts
+        run: |
+          ls -la dist/
+          echo "---"
+          ls -la dist/protocol/
+          echo "---"
+          ls -la dist/relay/
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install VitePress
+        run: npm install -g vitepress
+
+      - name: Build docs
+        run: npx vitepress build docs
+        continue-on-error: true  # docs build is optional for now
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    needs: [test]
+    defaults:
+      run:
+        working-directory: neca2
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+          cache-dependency-path: neca2/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish to npm
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

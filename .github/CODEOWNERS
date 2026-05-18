@@ -1,0 +1,26 @@
+# CODEOWNERS — 代码审查者
+#
+# 每个匹配模式的代码变更都需要指定用户的 review。
+# 格式: pattern @user1 @user2
+#
+# 了解更多: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# 默认所有者
+* @Ultima0369
+
+# 协议规范文件
+spec/* @Ultima0369
+
+# neca2 核心实现
+neca2/src/protocol/* @Ultima0369
+neca2/src/relay/* @Ultima0369
+
+# 文档
+docs/* @Ultima0369
+README.md @Ultima0369
+
+# CI/CD 配置
+.github/workflows/* @Ultima0369
+
+# 架构决策记录
+adr/* @Ultima0369

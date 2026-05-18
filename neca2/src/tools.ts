@@ -2,16 +2,25 @@
 
 import { z } from 'zod';
 import { makeMessage } from './protocol/codec.js';
+import { BinaryCodec, compressionRatio } from './protocol/binary-codec.js';
 import { routeMessage, getPendingFor, pendingCount } from './relay/router.js';
 import { getSession, listSessions, sessionStats, deleteSession } from './relay/session.js';
 import { relayManager } from './relay/http-relay.js';
 import { STANDARD_AGENTS, STANDARD_MESSAGE_TYPES } from './protocol/types.js';
 import { getMetaState, getTrace, getRecentTraces, adaptive } from './meta/orchestrator.js';
 import { getContextForHealth, getFullContext, updateMemory, addTopic } from './memory/memory-manager.js';
+import { retryQueue } from './relay/retry-queue.js';
+import { runMiddlewarePipeline, resetRateLimiter } from './relay/midware-pipeline.js';
+import { logger, getLogDir } from './utils/logger.js';
+import { readBlackboard, writeSelfStatus, getBlackboardSummary, isNecaAlive, addMessageToBlackboard } from './shared/blackboard.js';
+import { getNecaSummary, getBridgeStats } from './shared/neca-bridge.js';
 
 const AGENT_NAMES = STANDARD_AGENTS.map(a => a) as [string, ...string[]];
 const MSG_TYPES = STANDARD_MESSAGE_TYPES.map(t => t) as [string, ...string[]];
 const MSG_TYPES_NO_SYSTEM = MSG_TYPES.filter(t => !['pong', 'ack', 'error', 'init'].includes(t)) as [string, ...string[]];
+
+// 二进制 codec 实例（用于演示压缩率）
+const binaryCodec = new BinaryCodec();
 
 export const tools = {
   neca2_send: {
@@ -26,8 +35,18 @@ export const tools = {
     handler: async (args: any): Promise<{ success: boolean; data: unknown; error?: string }> => {
       const msg = makeMessage('cloud_ds', args.to, args.type, args.payload as any, args.callback ?? false);
       if (args.id) msg.id = args.id;
-      const session = await routeMessage(msg);
+
+      // 通过中间件管道校验
+      const midResult = await runMiddlewarePipeline(msg);
+      if (!midResult.allowed) {
+        return { success: false, error: midResult.error || 'Message rejected by middleware', data: { validation: midResult.validation } };
+      }
+
+      const session = await routeMessage(midResult.message!);
       addTopic(`${args.type}→${args.to}`);
+
+      // 记录到黑板报
+      addMessageToBlackboard('cloud_ds', args.to, args.type, JSON.stringify(args.payload).substring(0, 60));
 
       if (args.callback && session.status !== 'reply_received' && session.status !== 'error') {
         const deadline = Date.now() + 5 * 60 * 1000;
@@ -103,7 +122,17 @@ export const tools = {
     description: 'Check relay provider status.',
     parameters: z.object({}),
     handler: async (): Promise<{ success: boolean; data: unknown; error?: string }> => {
-      return { success: true, data: { availableProviders: relayManager.availableProviders, defaultProvider: relayManager.default, available: relayManager.available, sessionStats: sessionStats(), pendingCount: pendingCount() } };
+      return {
+        success: true,
+        data: {
+          availableProviders: relayManager.availableProviders,
+          defaultProvider: relayManager.default,
+          available: relayManager.available,
+          sessionStats: sessionStats(),
+          pendingCount: pendingCount(),
+          retryQueue: { depth: retryQueue.depth, stats: retryQueue.stats },
+        },
+      };
     },
   },
 
@@ -119,9 +148,18 @@ export const tools = {
           uptime: process.uptime(),
           platform: process.platform,
           nodeVersion: process.version,
+          features: [
+            'json-codec', 'binary-codec', 'validator-middleware', 'retry-queue',
+            'auto-persist', 'structured-logging', 'codec-factory', 'router-scheduler',
+            'cli', 'shared-blackboard', 'neca-bridge',
+          ],
           sessionStats: sessionStats(),
-          memory: ctx,  // ← 内嵌项目上下文，跨 session 自动恢复
-        }
+          retryQueueStats: retryQueue.stats,
+          retryQueueDepth: retryQueue.depth,
+          bridge: getBridgeStats(),
+          blackboard: getBlackboardSummary(),
+          memory: ctx,
+        },
       };
     },
   },
@@ -130,7 +168,35 @@ export const tools = {
     description: 'Compact protocol spec summary.',
     parameters: z.object({}),
     handler: async (): Promise<{ success: boolean; data: unknown; error?: string }> => {
-      return { success: true, data: { version: 1, standardAgents: STANDARD_AGENTS, standardMessageTypes: STANDARD_MESSAGE_TYPES, codecs: ['json'], features: ['callback', 'persistence', 'multi-model-relay', 'meta-orchestrator', 'memory-persistence'] } };
+      // 演示二进制压缩效果
+      const demoMsg = makeMessage('cloud_ds', 'local_claude', 'exec', { cmd: 'echo hello world', cwd: '/tmp', timeout: 5000 });
+      const jsonBytes = JSON.stringify(demoMsg).length;
+      const binaryBytes = binaryCodec.encode(demoMsg).length;
+      const ratio = compressionRatio(jsonBytes, binaryBytes);
+
+      return {
+        success: true,
+        data: {
+          version: 1,
+          standardAgents: STANDARD_AGENTS,
+          standardMessageTypes: STANDARD_MESSAGE_TYPES,
+          codecs: ['json', 'binary'],
+          features: [
+            'callback', 'persistence', 'multi-model-relay',
+            'meta-orchestrator', 'memory-persistence',
+            'binary-codec', 'validator-middleware', 'retry-queue',
+            'auto-persist', 'structured-logging',
+            'codec-factory', 'router-scheduler', 'cli',
+            'shared-blackboard', 'neca-bridge',
+          ],
+          compressionDemo: {
+            messageType: 'exec',
+            jsonBytes,
+            binaryBytes,
+            saving: ratio,
+          },
+        },
+      };
     },
   },
 
@@ -143,7 +209,14 @@ export const tools = {
     }),
     handler: async (args: any): Promise<{ success: boolean; data: unknown; error?: string }> => {
       const msg = makeMessage('cloud_ds', 'local_claude', 'exec', { cmd: args.cmd, cwd: args.cwd, timeout: args.timeout ?? 30000 }, true);
-      const session = await routeMessage(msg);
+
+      // 通过中间件管道
+      const midResult = await runMiddlewarePipeline(msg);
+      if (!midResult.allowed) {
+        return { success: false, error: midResult.error || 'Message rejected', data: null };
+      }
+
+      const session = await routeMessage(midResult.message!);
       if (session.status === 'reply_received' && session.response) return { success: true, data: session.response.payload };
       return { success: false, error: 'exec failed', data: session.response };
     },
@@ -190,7 +263,6 @@ export const tools = {
         errors: [],
       };
 
-      // 1. 如果要求验证，先检查语法
       if (verify) {
         const tmpDir = pathModule.join(process.env.TEMP || '/tmp', 'neca2_verify');
         fs.mkdirSync(tmpDir, { recursive: true });
@@ -204,7 +276,6 @@ export const tools = {
 
         try {
           fs.writeFileSync(tmpFile, content, 'utf-8');
-
           if (verify.checkSyntax || verify.checkCompile) {
             let cmd = '';
             if (verify.language === 'rust' && verify.checkCompile) {
@@ -218,7 +289,6 @@ export const tools = {
             } else if (verify.testCmd) {
               cmd = verify.testCmd.replace('{file}', tmpFile);
             }
-
             if (cmd) {
               try {
                 execSync(cmd, { timeout: 30000, windowsHide: true, encoding: 'utf-8' });
@@ -229,7 +299,6 @@ export const tools = {
               }
             }
           }
-
           try { fs.unlinkSync(tmpFile); } catch {}
           try { fs.unlinkSync(tmpFile + '.out'); } catch {}
         } catch (e: any) {
@@ -238,12 +307,10 @@ export const tools = {
         }
       }
 
-      // 2. 写入目标文件
       if (!verify || result.verified || result.errors.length === 0) {
         try {
           const dir = pathModule.dirname(targetPath);
           fs.mkdirSync(dir, { recursive: true });
-
           if (atomic) {
             const tmpTarget = targetPath + '.neca2_tmp';
             fs.writeFileSync(tmpTarget, content, 'utf-8');
@@ -251,14 +318,12 @@ export const tools = {
           } else {
             fs.writeFileSync(targetPath, content, 'utf-8');
           }
-
           result.written = true;
           result.writtenAt = Date.now();
         } catch (e: any) {
           result.errors.push({ phase: 'write', error: e.message });
         }
       }
-
       return { success: result.written, data: result };
     },
   },
@@ -292,6 +357,41 @@ export const tools = {
           break;
       }
       return { success: true, data: getFullContext() };
+    },
+  },
+
+  // ============================================================
+  // 里程碑 3 新增工具
+  // ============================================================
+
+  neca2_blackboard: {
+    description: 'Read the shared neca+neca2 blackboard. Shows both server status, session stats, and recent messages.',
+    parameters: z.object({}),
+    handler: async (): Promise<{ success: boolean; data: unknown; error?: string }> => {
+      const bb = readBlackboard();
+      if (!bb) {
+        return { success: true, data: { message: 'No blackboard data yet. neca2 will write on next tool call.', necaAlive: false } };
+      }
+      return {
+        success: true,
+        data: {
+          ...bb,
+          necaAlive: isNecaAlive(),
+          necaSummary: getNecaSummary(),
+          summary: getBlackboardSummary(),
+        },
+      };
+    },
+  },
+
+  neca2_bridge_status: {
+    description: 'Check the neca bridge status — whether neca (left hand) is alive and available for delegation.',
+    parameters: z.object({}),
+    handler: async (): Promise<{ success: boolean; data: unknown; error?: string }> => {
+      return {
+        success: true,
+        data: getBridgeStats(),
+      };
     },
   },
 };

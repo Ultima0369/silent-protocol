@@ -1,16 +1,76 @@
 {
   "name": "@silent-protocol/gateway",
-  "version": "0.2.0",
-  "description": "Silent Protocol 紧凑协议参考实现 — neca 的右手",
+  "version": "0.4.0",
+  "description": "Silent Protocol — silicon-native communication protocol reference implementation. Compact protocol codec, multi-model relay, session management, CLI tools.",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "neca2": "./dist/cli.js",
+    "neca2-cli": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./protocol": {
+      "types": "./dist/protocol/index.d.ts",
+      "import": "./dist/protocol/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "silent-protocol",
+    "silicon-native",
+    "agent-communication",
+    "mcp",
+    "model-context-protocol",
+    "multi-agent",
+    "compact-protocol",
+    "neca",
+    "ai-gateway"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ultima0369/silent-protocol.git",
+    "directory": "neca2"
+  },
+  "homepage": "https://github.com/Ultima0369/silent-protocol#readme",
+  "bugs": {
+    "url": "https://github.com/Ultima0369/silent-protocol/issues"
+  },
+  "license": "MIT",
+  "author": "Ultima0369 <ultimate0369@gmail.com>",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "npx tsx src/index.ts",
+    "cli": "npx tsx src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:pct": "vitest run tests/pct.test.ts",
+    "test:integration": "vitest run tests/integration.test.ts",
+    "test:protocol": "vitest run tests/protocol.test.ts",
+    "test:session": "vitest run tests/session.test.ts",
+    "test:retry": "vitest run tests/retry-queue.test.ts",
+    "test:factory": "vitest run tests/codec-factory.test.ts",
+    "test:scheduler": "vitest run tests/scheduler.test.ts",
+    "test:blackboard": "vitest run tests/blackboard.test.ts",
+    "prepublishOnly": "npm test && npm run build",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.8.0",
@@ -19,8 +79,12 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^4.1.6",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.6"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
