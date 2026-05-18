@@ -30,6 +30,15 @@ import {
 } from './relay/intent-executor.js';
 import { parseIntent } from './relay/intent-parser.js';
 import { aggregateFeedback, getAcceptancePrompt } from './relay/feedback-aggregator.js';
+import {
+  fullSafetyCheck,
+  safetyPreflight,
+  cleanResiduals,
+  validatePath,
+  analyzeFileForChunking,
+  writeFileInChunks,
+  withTimeout,
+} from './utils/safety.js';
 import type { Message } from './protocol/types.js';
 
 const AGENT_NAMES = STANDARD_AGENTS.map(a => a) as [string, ...string[]];
@@ -171,6 +180,7 @@ export const tools = {
     parameters: z.object({}),
     handler: async (): Promise<{ success: boolean; data: unknown; error?: string }> => {
       const ctx = getContextForHealth();
+      const safety = fullSafetyCheck();
       return {
         success: true,
         data: {
@@ -183,7 +193,7 @@ export const tools = {
             'auto-persist', 'structured-logging', 'codec-factory', 'router-scheduler',
             'cli', 'shared-blackboard', 'neca-bridge',
             'v2-stream-protocol', 'v2-adaptive-learning', 'v2-zero-overhead',
-            'intent-execution',
+            'intent-execution', 'safety-guard',
           ],
           sessionStats: sessionStats(),
           retryQueueStats: retryQueue.stats,
@@ -193,6 +203,10 @@ export const tools = {
           memory: ctx,
           intentExecution: {
             activeExecutions: listExecutions().length,
+          },
+          safety: {
+            warnings: safety.warnings,
+            residualFiles: safety.residual.pidFiles.length + safety.residual.lockFiles.length,
           },
         },
       };
@@ -225,7 +239,7 @@ export const tools = {
             'codec-factory', 'router-scheduler', 'cli',
             'shared-blackboard', 'neca-bridge',
             'v2-stream-protocol', 'v2-adaptive-learning', 'v2-zero-overhead',
-            'intent-execution',
+            'intent-execution', 'safety-guard',
           ],
           compressionDemo: {
             messageType: 'exec',
@@ -245,21 +259,41 @@ export const tools = {
   },
 
   neca2_exec: {
-    description: 'Execute a shell command via compact protocol.',
+    description: 'Execute a shell command via compact protocol. Safety preflight included.',
     parameters: z.object({
       cmd: z.string().describe('Command'),
       cwd: z.string().optional().describe('Working directory'),
-      timeout: z.number().optional().default(30000),
+      timeout: z.number().optional().default(30000).describe('Timeout in ms'),
     }),
     handler: async (args: any): Promise<{ success: boolean; data: unknown; error?: string }> => {
-      const msg = makeMessage('cloud_ds', 'local_claude', 'exec', { cmd: args.cmd, cwd: args.cwd, timeout: args.timeout ?? 30000 }, true);
+      // 安全前检
+      const preflight = safetyPreflight('exec');
+      
+      const msg = makeMessage('cloud_ds', 'local_claude', 'exec', { 
+        cmd: args.cmd, 
+        cwd: args.cwd || process.cwd(), 
+        timeout: args.timeout ?? 30000 
+      }, true);
+      
       const midResult = await runMiddlewarePipeline(msg);
       if (!midResult.allowed) {
         return { success: false, error: midResult.error || 'Message rejected', data: null };
       }
-      const session = await routeMessage(midResult.message!);
-      if (session.status === 'reply_received' && session.response) return { success: true, data: session.response.payload };
-      return { success: false, error: 'exec failed', data: session.response };
+      
+      // 带超时的执行
+      try {
+        const session = await withTimeout(
+          () => routeMessage(midResult.message!),
+          (args.timeout ?? 30000) + 5000,
+          `exec: ${args.cmd?.substring(0, 40)}`
+        );
+        if (session.status === 'reply_received' && session.response) {
+          return { success: true, data: { ...session.response.payload, _safety: preflight } };
+        }
+        return { success: false, error: 'exec failed', data: { status: session.status, response: session.response, _safety: preflight } };
+      } catch (e: any) {
+        return { success: false, error: e.message, data: { _safety: preflight } };
+      }
     },
   },
 
@@ -272,7 +306,7 @@ export const tools = {
   },
 
   neca2_memory_write: {
-    description: 'Write a file using memory-first approach: construct in memory, verify, then write to disk atomically.',
+    description: 'Write a file using memory-first approach: construct in memory, verify, then write to disk atomically. Supports chunked writes for large files.',
     parameters: z.object({
       path: z.string().describe('Target file path'),
       content: z.string().describe('File content to write'),
@@ -295,7 +329,18 @@ export const tools = {
       const verify = args.verify;
       const atomic = args.atomic ?? true;
 
-      const result: any = { path: targetPath, size: Buffer.byteLength(content, 'utf-8'), atomic, verified: false, written: false, errors: [] };
+      // 安全检查：文件大小分析
+      const chunkAnalysis = analyzeFileForChunking(content);
+      
+      const result: any = { 
+        path: targetPath, 
+        size: Buffer.byteLength(content, 'utf-8'), 
+        atomic, 
+        verified: false, 
+        written: false, 
+        errors: [],
+        chunkAnalysis,
+      };
 
       if (verify) {
         const tmpDir = pathModule.join(process.env.TEMP || '/tmp', 'neca2_verify');
@@ -333,13 +378,25 @@ export const tools = {
         try {
           const dir = pathModule.dirname(targetPath);
           fs.mkdirSync(dir, { recursive: true });
-          if (atomic) {
+          
+          if (chunkAnalysis.chunks > 1) {
+            // 大文件分块写入
+            const chunkResult = writeFileInChunks(targetPath, content);
+            result.written = chunkResult.success;
+            result.chunked = true;
+            if (!chunkResult.success) {
+              result.errors.push({ phase: 'chunked_write', error: chunkResult.error });
+            }
+          } else if (atomic) {
             const tmpTarget = targetPath + '.neca2_tmp';
             fs.writeFileSync(tmpTarget, content, 'utf-8');
             fs.renameSync(tmpTarget, targetPath);
-          } else { fs.writeFileSync(targetPath, content, 'utf-8'); }
-          result.written = true;
-          result.writtenAt = Date.now();
+            result.written = true;
+          } else {
+            fs.writeFileSync(targetPath, content, 'utf-8');
+            result.written = true;
+          }
+          if (result.written) result.writtenAt = Date.now();
         } catch (e: any) { result.errors.push({ phase: 'write', error: e.message }); }
       }
       return { success: result.written, data: result };
@@ -526,6 +583,9 @@ export const tools = {
       text: z.string().describe('自然语言描述你要做的事情，如"帮我爬一下AI论文"'),
     }),
     handler: async (args: any): Promise<{ success: boolean; data: unknown; error?: string }> => {
+      // 安全前检
+      safetyPreflight(`intent: ${args.text?.substring(0, 30)}`);
+      
       const state = await executeFromNaturalLanguage(args.text);
       if (state.status === 'needs_clarification') {
         return { success: false, error: state.clarification || '需要更详细的描述', data: { status: state.status, executionId: state.id } };
@@ -626,6 +686,84 @@ export const tools = {
             age: Date.now() - e.startTime,
             error: e.error,
           })),
+        },
+      };
+    },
+  },
+
+  // ============================================================
+  // 安全防护工具（防翻车三件套）
+  // ============================================================
+
+  neca2_safety_check: {
+    description: '[Safety Guard] 全量安全检查：残余进程/文件、目录权限、内存状态。执行任务前先跑这个。',
+    parameters: z.object({}),
+    handler: async (): Promise<{ success: boolean; data: unknown; error?: string }> => {
+      const report = fullSafetyCheck();
+      const cleanResult = cleanResiduals();
+      return {
+        success: true,
+        data: {
+          status: report.warnings.length === 0 ? 'clean' : 'issues_found',
+          timestamp: report.timestamp,
+          residual: {
+            pidFiles: report.residual.pidFiles.length,
+            lockFiles: report.residual.lockFiles.length,
+            staleSessions: report.residual.staleSessions,
+            warnings: report.residual.warnings,
+            cleaned: cleanResult.cleaned,
+          },
+          cwd: {
+            path: process.cwd(),
+            writable: report.cwd.writable,
+            exists: report.cwd.exists,
+            warnings: report.cwd.warnings,
+          },
+          temp: {
+            path: process.env.TEMP || '/tmp',
+            writable: report.tempDir.writable,
+          },
+          memory: {
+            heapUsed: `${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1)}MB`,
+            heapTotal: `${(process.memoryUsage().heapTotal / 1024 / 1024).toFixed(1)}MB`,
+          },
+          allClear: report.warnings.length === 0,
+        },
+      };
+    },
+  },
+
+  neca2_safety_preflight: {
+    description: '[Safety Guard] 执行前安全检查。检查残余进程、目录可写性、内存水位。带自动清理。',
+    parameters: z.object({
+      taskName: z.string().describe('任务名称（用于日志）'),
+    }),
+    handler: async (args: any): Promise<{ success: boolean; data: unknown; error?: string }> => {
+      const result = safetyPreflight(args.taskName || 'unnamed');
+      return {
+        success: result.ok,
+        data: {
+          ok: result.ok,
+          warnings: result.warnings,
+          safe: result.ok ? '可安全执行' : '存在风险，建议先处理警告',
+        },
+      };
+    },
+  },
+
+  neca2_safety_clean: {
+    description: '[Safety Guard] 清理所有残余进程和锁文件。',
+    parameters: z.object({}),
+    handler: async (): Promise<{ success: boolean; data: unknown; error?: string }> => {
+      const result = cleanResiduals();
+      const check = fullSafetyCheck();
+      return {
+        success: true,
+        data: {
+          cleaned: result.cleaned,
+          errors: result.errors,
+          residual_remaining: check.residual.pidFiles.length + check.residual.lockFiles.length,
+          allClear: check.warnings.length === 0,
         },
       };
     },
