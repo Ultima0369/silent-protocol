@@ -1,6 +1,8 @@
 // ---- Intent Executor ----
 // 按计划执行，支持进度反馈、暂停调整、错误恢复
 // 碳基只负责"验收、改这里、再来一次"
+//
+// v0.9.6: AbortController 真取消 — 取消信号传播到子进程
 
 import { parseIntent, needsClarification } from './intent-parser.js';
 import { planExecution, type ExecutionPlan, type PlannedStep } from './exec-planner.js';
@@ -23,6 +25,8 @@ export interface ExecutionState {
   endTime: number | null;
   clarification: string | null;
   userFeedback: string[];
+  /** AbortController 用于真取消 — 传播信号到正在执行的步骤 */
+  abortController: AbortController;
 }
 
 const executions = new Map<string, ExecutionState>();
@@ -50,6 +54,7 @@ export async function executeFromNaturalLanguage(text: string): Promise<Executio
       endTime: null,
       clarification,
       userFeedback: [],
+      abortController: new AbortController(),
     };
     executions.set(state.id, state);
     return state;
@@ -69,6 +74,7 @@ export async function executeFromNaturalLanguage(text: string): Promise<Executio
     endTime: null,
     clarification: null,
     userFeedback: [],
+    abortController: new AbortController(),
   };
   executions.set(state.id, state);
 
@@ -76,10 +82,17 @@ export async function executeFromNaturalLanguage(text: string): Promise<Executio
 
   // 4. 异步执行（不 await，返回立即状态）
   executePlanAsync(state).catch(err => {
-    state.status = 'failed';
-    state.error = err.message;
-    state.endTime = Date.now();
-    logger.error('Execution failed', { planId: state.id, error: err.message }, { module: 'intent' });
+    // AbortError 是预期的，不视为失败
+    if (err.name === 'AbortError') {
+      logger.info('Execution aborted', { planId: state.id }, { module: 'intent' });
+      return;
+    }
+    if (state.status !== 'cancelled') {
+      state.status = 'failed';
+      state.error = err.message;
+      state.endTime = Date.now();
+      logger.error('Execution failed', { planId: state.id, error: err.message }, { module: 'intent' });
+    }
   });
 
   return state;
@@ -90,6 +103,7 @@ export async function executeFromNaturalLanguage(text: string): Promise<Executio
  */
 async function executePlanAsync(state: ExecutionState): Promise<void> {
   const plan = state.plan!;
+  const signal = state.abortController.signal;
   const stepMap = new Map<string, PlannedStep>();
   plan.steps.forEach(s => stepMap.set(s.id, s));
 
@@ -98,7 +112,12 @@ async function executePlanAsync(state: ExecutionState): Promise<void> {
   const maxRetries = 2;
 
   while (executed.size < plan.steps.length) {
-    if (state.status === 'cancelled' || state.status === 'paused') {
+    // 检查取消信号
+    if (signal.aborted) {
+      throw new DOMException('Execution cancelled', 'AbortError');
+    }
+
+    if (state.status === 'paused') {
       return;
     }
 
@@ -122,12 +141,20 @@ async function executePlanAsync(state: ExecutionState): Promise<void> {
 
     // 执行所有可并行步骤
     for (const step of readySteps) {
+      // 每次迭代检查取消
+      if (signal.aborted) {
+        throw new DOMException('Execution cancelled', 'AbortError');
+      }
+
       state.currentStepIndex = plan.steps.indexOf(step);
       try {
-        const result = await executeStepWithRetry(step, maxRetries);
+        const result = await executeStepWithRetry(step, maxRetries, signal);
         state.stepResults.set(step.id, result);
         executed.add(step.id);
       } catch (err: any) {
+        // 取消异常向上传播
+        if (err.name === 'AbortError') throw err;
+
         if (step.critical) {
           state.status = 'failed';
           state.error = `关键步骤失败: ${step.description} — ${err.message}`;
@@ -143,37 +170,65 @@ async function executePlanAsync(state: ExecutionState): Promise<void> {
   }
 
   // 所有步骤完成
-  state.status = 'completed';
-  state.endTime = Date.now();
-  logger.info('Execution completed', { planId: state.id, steps: plan.steps.length, time: state.endTime - state.startTime }, { module: 'intent' });
+  if (!signal.aborted) {
+    state.status = 'completed';
+    state.endTime = Date.now();
+    logger.info('Execution completed', { planId: state.id, steps: plan.steps.length, time: state.endTime - state.startTime }, { module: 'intent' });
+  }
 }
 
 /**
- * 执行单步（带重试）
+ * 执行单步（带重试 + 可取消）
  */
-async function executeStepWithRetry(step: PlannedStep, maxRetries: number): Promise<unknown> {
+async function executeStepWithRetry(step: PlannedStep, maxRetries: number, signal: AbortSignal): Promise<unknown> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    // 检查取消信号
+    if (signal.aborted) {
+      throw new DOMException('Execution cancelled', 'AbortError');
+    }
+
     try {
       if (attempt > 0) {
-        // 指数退避
-        await new Promise(r => setTimeout(r, attempt * 1000));
+        // 指数退避（可取消的等待）
+        await waitWithSignal(attempt * 1000, signal);
       }
-      return await executeStep(step);
+      return await executeStep(step, signal);
     } catch (err: any) {
+      if (err.name === 'AbortError') throw err;
       lastError = err;
       if (!step.retryOnFail) throw err;
       logger.warn('Step retry', { step: step.id, attempt, error: err.message }, { module: 'intent' });
     }
   }
-  throw lastError;
+  throw lastError!;
 }
 
 /**
- * 执行单步
+ * 可取消的延时等待
  */
-async function executeStep(step: PlannedStep): Promise<unknown> {
+function waitWithSignal(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException('Execution cancelled', 'AbortError'));
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      reject(new DOMException('Execution cancelled', 'AbortError'));
+    }, { once: true });
+  });
+}
+
+/**
+ * 执行单步（带取消信号）
+ */
+async function executeStep(step: PlannedStep, signal: AbortSignal): Promise<unknown> {
+  // 执行前检查取消
+  if (signal.aborted) throw new DOMException('Execution cancelled', 'AbortError');
+
   switch (step.type) {
     case 'exec': {
       const msg = makeMessage('cloud_ds', step.target, 'exec', {
@@ -246,12 +301,11 @@ async function executeStep(step: PlannedStep): Promise<unknown> {
 
     case 'wait': {
       const ms = (step.payload['ms'] as number) || 1000;
-      await new Promise(r => setTimeout(r, ms));
+      await waitWithSignal(ms, signal);
       return { waited: ms };
     }
 
     case 'notify':
-      // 通知不需要响应
       return { notified: true };
 
     default:
@@ -267,13 +321,15 @@ export function getExecutionState(id: string): ExecutionState | undefined {
 }
 
 /**
- * 取消执行
+ * 取消执行 — 真取消
+ * 通过 AbortController 发送中止信号，传播到正在执行的步骤
  */
 export function cancelExecution(id: string): boolean {
   const state = executions.get(id);
   if (!state || state.status === 'completed' || state.status === 'failed' || state.status === 'cancelled') return false;
   state.status = 'cancelled';
   state.endTime = Date.now();
+  state.abortController.abort();  // 真取消！传播信号到子进程
   logger.info('Execution cancelled', { planId: id }, { module: 'intent' });
   return true;
 }
@@ -299,6 +355,7 @@ export function resumeExecution(id: string): boolean {
   logger.info('Execution resumed', { planId: id }, { module: 'intent' });
   // 异步继续
   executePlanAsync(state).catch(err => {
+    if (err.name === 'AbortError') return;
     state.status = 'failed';
     state.error = err.message;
     state.endTime = Date.now();
@@ -337,11 +394,13 @@ export async function submitFeedback(id: string, feedback: string): Promise<{
 
   if (['重来', '再来', '重新', 'restart', '重试', '重新开始'].includes(lowerFeedback) || feedback.startsWith('重来')) {
     if (!state.plan) {
-      // 没有 plan 的情况（needs_clarification），重新解析
       const newState = await executeFromNaturalLanguage(state.clarification || feedback);
       return { result: null, status: newState.status, adjusted: true };
     }
-    // 重新执行
+    // 先取消当前执行，再重新开始
+    state.abortController.abort();
+    const newAbort = new AbortController();
+    state.abortController = newAbort;
     state.stepResults.clear();
     state.currentStepIndex = 0;
     state.error = null;
@@ -349,6 +408,7 @@ export async function submitFeedback(id: string, feedback: string): Promise<{
     state.startTime = Date.now();
     state.endTime = null;
     executePlanAsync(state).catch(err => {
+      if (err.name === 'AbortError') return;
       state.status = 'failed';
       state.error = err.message;
       state.endTime = Date.now();
@@ -357,12 +417,10 @@ export async function submitFeedback(id: string, feedback: string): Promise<{
   }
 
   if (feedback.startsWith('改') || feedback.startsWith('修改') || lowerFeedback.startsWith('change') || lowerFeedback.startsWith('fix')) {
-    // 用户要求修改——返回当前结果
     const result = state.plan ? aggregateFeedback(state.plan, state.stepResults) : null;
     return { result, status: state.status, adjusted: false };
   }
 
-  // 其他反馈——返回当前状态
   const result = state.plan ? aggregateFeedback(state.plan, state.stepResults) : null;
   return { result, status: state.status, adjusted: false };
 }

@@ -9,6 +9,83 @@ import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { logger } from './logger.js';
 
+// ---- Safety Guard ----
+// 安全防护层：防翻车三件套 + exec 安全白名单
+// 1. exec 安全白名单 + 注入防护
+// 2. 残余进程检查 — 执行前扫一遍有没有锁文件/残留进程
+// 3. 文件目录验证 — 写文件前确认路径存在，不存在则创建
+// 4. 大文件分块 + 长任务超时 — 防止一次干太多炸了
+
+// ============================================================
+// 0. exec 安全白名单 + 注入防护
+// ============================================================
+
+export interface ExecSafetyConfig {
+  whitelistEnabled: boolean;
+  allowedCommands: string[];
+  allowedChars: RegExp;
+  maxCmdLength: number;
+  forbiddenPatterns: RegExp[];
+}
+
+const DEFAULT_EXEC_CONFIG: ExecSafetyConfig = {
+  whitelistEnabled: true,
+  allowedCommands: [
+    'npm', 'node', 'npx', 'tsc', 'vitest', 'jest', 'mocha',
+    'git', 'curl', 'wget', 'ping', 'ssh', 'scp', 'rsync',
+    'cat', 'grep', 'find', 'ls', 'dir', 'echo', 'head', 'tail', 'sort', 'wc',
+    'python', 'python3', 'pip', 'pip3',
+    'go', 'rustc', 'cargo',
+    'docker', 'docker-compose',
+    'mkdir', 'cp', 'mv', 'rm', 'touch', 'chmod', 'chown',
+    'tar', 'gzip', 'zip', 'unzip',
+    'ps', 'top', 'df', 'du', 'free', 'uname', 'whoami',
+    'pnpm', 'yarn', 'bun',
+  ],
+  allowedChars: /^[\w\-./\\@: =,;'"<>()&|!%]+$/,
+  maxCmdLength: 4096,
+  forbiddenPatterns: [
+    /;\s*[a-z]/i,
+    /\$\s*\(/,
+    /`[^`]+`/,
+    /\|\s*\|/,
+    /&&\s*[a-z]/i,
+    />\s*\//,
+    /2>\s*\//,
+  ],
+};
+
+let execConfig: ExecSafetyConfig = { ...DEFAULT_EXEC_CONFIG };
+
+export function setExecSafetyConfig(config: Partial<ExecSafetyConfig>): void {
+  execConfig = { ...execConfig, ...config };
+}
+
+export function checkExecSafety(cmd: string): { allowed: boolean; reason?: string } {
+  if (!cmd || cmd.trim().length === 0) return { allowed: false, reason: '命令不能为空' };
+  if (cmd.length > execConfig.maxCmdLength) {
+    return { allowed: false, reason: `命令过长 (${cmd.length} > ${execConfig.maxCmdLength})` };
+  }
+  if (execConfig.whitelistEnabled) {
+    const firstToken = cmd.trim().split(/\s+/)[0].toLowerCase();
+    const allowed = execConfig.allowedCommands.some(ac => {
+      if (ac.includes('*')) {
+        return new RegExp('^' + ac.replace(/\*/g, '.*') + '$', 'i').test(firstToken);
+      }
+      return firstToken === ac.toLowerCase() || firstToken.startsWith(ac.toLowerCase() + '.');
+    });
+    if (!allowed) return { allowed: false, reason: `命令 "${firstToken}" 不在白名单中` };
+  }
+  for (const pattern of execConfig.forbiddenPatterns) {
+    if (pattern.test(cmd)) return { allowed: false, reason: `检测到禁止模式: ${pattern}` };
+  }
+  if (!execConfig.allowedChars.test(cmd)) {
+    const badChars = [...new Set(cmd.split('').filter(c => !execConfig.allowedChars.test(c)))];
+    return { allowed: false, reason: `包含不允许的字符: ${badChars.slice(0, 5).map(c => "'" + c + "'").join(', ')}` };
+  }
+  return { allowed: true };
+}
+
 // ============================================================
 // 1. 残余进程检查
 // ============================================================
