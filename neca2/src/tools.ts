@@ -12,6 +12,7 @@ import { getContextForHealth, getFullContext, updateMemory, addTopic } from './m
 import { retryQueue } from './relay/retry-queue.js';
 import { runMiddlewarePipeline, resetRateLimiter } from './relay/midware-pipeline.js';
 import { logger, getLogDir } from './utils/logger.js';
+import { permissionManager, INDUSTRY_LEVELS } from './utils/permissions.js';
 import { readBlackboard, writeSelfStatus, getBlackboardSummary, isNecaAlive, addMessageToBlackboard } from './shared/blackboard.js';
 import { getNecaSummary, getBridgeStats } from './shared/neca-bridge.js';
 import { adaptiveEngine } from './relay/adaptive-learning.js';
@@ -764,6 +765,144 @@ export const tools = {
           errors: result.errors,
           residual_remaining: check.residual.pidFiles.length + check.residual.lockFiles.length,
           allClear: check.warnings.length === 0,
+        },
+      };
+    },
+  },
+
+  // ============================================================
+  // 用户主权权限工具
+  // ============================================================
+
+  neca2_permission_status: {
+    description: '查看当前权限状态（等级、允许的能力、生效范围）',
+    parameters: { shape: {}, parse: (a: any) => a },
+    handler: async () => {
+      const snap = permissionManager.snapshot();
+      const level = INDUSTRY_LEVELS[snap.level];
+      return {
+        success: true,
+        data: {
+          level: snap.level,
+          label: level?.label || "未知",
+          icon: level?.icon || "",
+          description: level?.description || "",
+          allowed: snap.allowed,
+          scopes: snap.effectiveScopes,
+          isTrusted: snap.isTrusted,
+          entries: snap.entries.map(e => ({
+            cap: e.capability,
+            scope: e.scope,
+            effect: e.effect,
+            path: e.path || null,
+            desc: e.description || null,
+          })),
+          summary: permissionManager.summary(),
+        },
+      };
+    },
+  },
+
+  neca2_permission_set_level: {
+    description: '设置行业标准权限等级 L0-L5',
+    parameters: {
+      shape: {
+        level: z.number().min(0).max(5).describe('权限等级 0-5'),
+        effect: z.enum(['persist', 'session', 'one-shot']).default('session').describe('生效方式'),
+      },
+      parse: (a: any) => a,
+    },
+    handler: async (args: any) => {
+      const snap = permissionManager.setLevel(args.level, args.effect || 'session');
+      const level = INDUSTRY_LEVELS[snap.level];
+      return {
+        success: true,
+        data: {
+          level: snap.level,
+          label: level?.label || "",
+          icon: level?.icon || "",
+          allowed: snap.allowed,
+          isTrusted: snap.isTrusted,
+          summary: permissionManager.summary(),
+          message: "权限已设置为 " + (level?.icon || "") + " L" + snap.level + " " + snap.label,
+        },
+      };
+    },
+  },
+
+  neca2_permission_trust: {
+    description: '一键完全信任（L5）\u2014 AI 拥有全部能力，如同老友',
+    parameters: {
+      shape: {
+        effect: z.enum(['persist', 'session', 'one-shot']).default('session').describe('生效方式'),
+      },
+      parse: (a: any) => a,
+    },
+    handler: async (args: any) => {
+      const snap = permissionManager.trust(args.effect || 'session');
+      return {
+        success: true,
+        data: {
+          level: 5,
+          label: "完全信任",
+          icon: "\uD83E\uDD1D",
+          allowed: snap.allowed,
+          summary: permissionManager.summary(),
+          message: "\uD83E\uDD1D 已授予完全信任权限。我拥有了全部能力，如同老友。",
+        },
+      };
+    },
+  },
+
+  neca2_permission_grant: {
+    description: '授予特定能力权限（更精细的控制）',
+    parameters: {
+      shape: {
+        capability: z.enum(['view', 'exec', 'write', 'admin', 'trust']).describe('能力'),
+        scope: z.enum(['global', 'project', 'directory', 'file']).default('global').describe('范围'),
+        effect: z.enum(['persist', 'session', 'one-shot']).default('session').describe('生效方式'),
+        path: z.string().optional().describe('路径'),
+        description: z.string().optional().describe('描述'),
+      },
+      parse: (a: any) => a,
+    },
+    handler: async (args: any) => {
+      const snap = permissionManager.grant(args.capability, {
+        scope: args.scope,
+        effect: args.effect,
+        path: args.path,
+        description: args.description,
+      });
+      return {
+        success: true,
+        data: {
+          level: snap.level,
+          allowed: snap.allowed,
+          summary: permissionManager.summary(),
+          message: "已授予 " + args.capability + " 权限",
+        },
+      };
+    },
+  },
+
+  neca2_permission_revoke: {
+    description: '撤销特定能力权限',
+    parameters: {
+      shape: {
+        capability: z.enum(['view', 'exec', 'write', 'admin', 'trust']).optional().describe('要撤销的能力'),
+        scope: z.enum(['global', 'project', 'directory', 'file']).optional().describe('范围'),
+      },
+      parse: (a: any) => a,
+    },
+    handler: async (args: any) => {
+      const snap = permissionManager.revoke(args.capability, { scope: args.scope });
+      return {
+        success: true,
+        data: {
+          level: snap.level,
+          allowed: snap.allowed,
+          summary: permissionManager.summary(),
+          message: "已撤销权限，当前 L" + snap.level,
         },
       };
     },

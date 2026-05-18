@@ -18,6 +18,7 @@ import { startHttpServer, stopHttpServer } from './transport/http-server.js';
 import { initMemory, saveMemory, getMemory } from './memory/memory-manager.js';
 import { initRetryQueue, shutdownRetryQueue } from './relay/retry-queue.js';
 import { logger } from './utils/logger.js';
+import { initPermissions, getPermissionSummary } from './utils/permissions.js';
 import { startBlackboardSync, writeSelfStatus, readBlackboard, getBlackboardSummary } from './shared/blackboard.js';
 import { getNecaSummary, getBridgeStats } from './shared/neca-bridge.js';
 import { adaptiveEngine } from './relay/adaptive-learning.js';
@@ -129,6 +130,11 @@ async function main(): Promise<void> {
   // 4. 意图执行引擎
   console.error(chalk.gray('[neca2] intent execution engine ready'));
   logger.info('Intent execution engine initialized', {}, { module: 'intent' });
+
+  // 5. 权限系统初始化
+  const permSnap = initPermissions();
+  console.error(chalk.gray('[neca2] permissions: ' + getPermissionSummary()));
+  logger.info('Permissions initialized', { level: permSnap.level, label: permSnap.label }, { module: 'permissions' });
 
   // 黑板报初始化
   startBlackboardSync();
