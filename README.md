@@ -202,7 +202,7 @@ neca2 bench --all --output my-report.json
 ### Project Stats
 
 ```
-📁 26 source files (TypeScript)  |  🧪 236 tests, 15 files — all passing
+📁 38 source files (TypeScript)  |  🧪 255 tests, 16 files — all passing
 ⚡ Binary codec: avg 38.9% savings vs JSON (up to 65.3%)
 💾 3-tier cache: 87-100% hit rate, 80% flow prediction accuracy
 🔐 L0-L5 dynamic permission system
@@ -213,17 +213,19 @@ neca2 bench --all --output my-report.json
 🪟 Zero-config Windows deployment (setup.bat + run.bat)
 ```
 
-#### 🧪 Test Report (236 tests · 15 files · 0 failures)
+#### 🧪 Test Report (255 tests · 16 files · 0 failures)
 
 | Module | Tests | File | Coverage |
 |--------|:-----:|------|:--------:|
 | 🧠 Intent Execution | **34** | `intent-execution.test.ts` | Parser → Planner → Executor → Feedback |
-| 🔬 Protocol Compliance | **20** | `pct.test.ts` | CORE rules + 11 msg types + Agents + Edge cases |
+| 🔬 Protocol Compliance | **32** | `pct.test.ts` | CORE rules + 11 msg types + Agents + Edge cases |
+| 📦 Advanced Cache | **21** | `cache-advanced.test.ts` | L1/L2/L3/semantic/flow-prediction/dedup |
 | 🎯 Codec Factory | **19** | `codec-factory.test.ts` | Register/query/auto-select/negotiation |
+| 🌊 Ambient Channel | **19** | `ambient-channel.test.ts` | Broadcast/tune/resonance/interrupt/awakening/overtone |
 | 🔒 Permissions | **15** | `permissions.test.ts` | L0-L5 levels/path constraints/one-shot/revoke |
 | 🛡️ Safety Guard | **15** | `safety.test.ts` | Preflight/check/clean/injection/whitelist |
 | ⚡ Scheduler | **15** | `scheduler.test.ts` | RR/Priority/LeastLoaded/EMA/stats |
-| 📦 Protocol Core | **15** | `protocol.test.ts` | Message/encode/decode/round-trip |
+| 📦 Protocol Core | **14** | `protocol.test.ts` | Message/encode/decode/round-trip |
 | 🔗 Integration | **13** | `integration.test.ts` | End-to-end relay/middleware/routing |
 | 🌊 Stream v2 | **12** | `stream-protocol.test.ts` | Frame/multiplexing/fragmentation/v1-vs-v2 |
 | 🧬 Adaptive Learning | **12** | `adaptive-learning.test.ts` | Bayesian/pattern-mining/auto-tuning |
@@ -231,8 +233,7 @@ neca2 bench --all --output my-report.json
 | 📋 Blackboard | **8** | `blackboard.test.ts` | Read/write/messages/summary/alive |
 | 🔄 Session | **8** | `session.test.ts` | CRUD/state machine/expiry/stats |
 | ⏳ Retry Queue | **8** | `retry-queue.test.ts` | Enqueue/dequeue/backoff/dedup/ttl |
-| 📦 Advanced Cache | **21** | `cache-advanced.test.ts` | L1/L2/L3/semantic/flow-prediction/dedup |
-| **Total** | **236** | **15 files** | **0 failures ✅** |
+| **Total** | **255** | **16 files** | **0 failures ✅** |
 
 > Run yourself: `npm test` or `npx vitest run --reporter=verbose`
 
@@ -246,17 +247,15 @@ MIT License — see [LICENSE](LICENSE).
 
 ### 👤 你不懂技术？这就对了
 
-**下载 → 填两行信息 → 说你想做什么。就这三步。**
+**下载 → 双击 → 说你想做什么。就这一步。**
 
 ```
 📁 silent-protocol-windows.zip
-   ├── setup.bat    ← 第一步：双击这个，填 API Key
-   ├── run.bat      ← 第二步：双击这个，开始对话
-   └── ...           （其他你不用管）
+   └── zero-run.bat  ← 双击这个，什么都不用填，开干
+   └── ...           （其他你更不用管）
 ```
 
-**setup.bat** 只问你要两条信息就配置完毕。
-**run.bat** 启动后，云端 AI 自动扫描你的电脑，然后你直接说需求：
+**双击 zero-run.bat** — 自动检测环境、找到 API Key、配置好一切。一行都不用填。然后你直接说需求：
 
 ```
 您 > 帮我查看一下电脑配置
@@ -365,10 +364,10 @@ npm start
 ### 项目统计
 
 ```
-📁 26 个源文件  |  🧪 236 项测试全绿 (16 文件, 0 失败)
+📁 38 个源文件  |  🧪 255 项测试全绿 (16 文件, 0 失败)
 ⚡ 二进制编解码平均省 38.9%  |  💾 三层缓存命中率 87-100%
 🔐 L0-L5 动态用户主权权限系统  |  🧠 意图执行协议
-🛠️ 36 个 MCP 工具 + 4 个 CLI 命令  |  🪟 Windows 一键部署
+🛠️ 36 个 MCP 工具 + 4 个 CLI 命令  |  🪟 零摩擦 (双击即用)
 ```
 
 #### 🧪 测试全景
@@ -376,13 +375,14 @@ npm start
 | 模块 | 测试数 | 文件 |
 |------|:------:|------|
 | 🧠 意图执行 | **34** | `intent-execution.test.ts` |
+| 🔬 协议合规 | **32** | `pct.test.ts` |
 | 📦 高级缓存 | **21** | `cache-advanced.test.ts` |
-| 🔬 协议合规 | **20** | `pct.test.ts` |
 | 🎯 编解码工厂 | **19** | `codec-factory.test.ts` |
+| 🌊 环境通道 | **19** | `ambient-channel.test.ts` |
 | 🔒 权限系统 | **15** | `permissions.test.ts` |
 | 🛡️ 安全防护 | **15** | `safety.test.ts` |
 | ⚡ 路由调度 | **15** | `scheduler.test.ts` |
-| 📦 协议核心 | **15** | `protocol.test.ts` |
+| 📦 协议核心 | **14** | `protocol.test.ts` |
 | 🔗 集成测试 | **13** | `integration.test.ts` |
 | 🌊 Stream v2 | **12** | `stream-protocol.test.ts` |
 | 🧬 自适应学习 | **12** | `adaptive-learning.test.ts` |
@@ -390,7 +390,7 @@ npm start
 | 📋 黑板报 | **8** | `blackboard.test.ts` |
 | 🔄 会话管理 | **8** | `session.test.ts` |
 | ⏳ 重试队列 | **8** | `retry-queue.test.ts` |
-| **总计** | **236** | **16 文件 · 0 失败 ✅** |
+| **总计** | **255** | **16 文件 · 0 失败 ✅** |
 
 > 自己验证：`npm test` 或 `npx vitest run`
 
