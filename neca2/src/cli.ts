@@ -23,6 +23,8 @@ import type { Message, MessageType, AnyPayload } from './protocol/types.js';
 import { STANDARD_AGENTS, STANDARD_MESSAGE_TYPES } from './protocol/types.js';
 import { runScenarioBenchmarks, estimateCost, getScenarioSummary } from './bench-scenarios.js';
 import type { ScenarioResult } from './bench-scenarios.js';
+import { runCacheBenchmarks, getCacheVsNLSummary } from './bench-cache.js';
+import type { CacheScenarioResult } from './bench-cache.js';
 
 const VERSION = '0.4.0';
 
@@ -285,9 +287,10 @@ async function cmdCompliance(): Promise<void> {
 // ---- bench 命令（三阶基准） ----
 
 async function cmdBench(args: string[], outputFile?: string): Promise<void> {
-  const runMicro = !hasFlag(args, '--scenarios') && !hasFlag(args, '--e2e') || hasFlag(args, '--micro') || hasFlag(args, '--all');
+  const runMicro = !hasFlag(args, '--scenarios') && !hasFlag(args, '--e2e') && !hasFlag(args, '--cache') || hasFlag(args, '--micro') || hasFlag(args, '--all');
   const runScenarios = hasFlag(args, '--scenarios') || hasFlag(args, '--all');
   const runE2e = hasFlag(args, '--e2e') || hasFlag(args, '--all');
+  const runCache = hasFlag(args, '--cache') || hasFlag(args, '--all');
   const runAll = hasFlag(args, '--all');
 
   const report: any = {
@@ -306,6 +309,9 @@ async function cmdBench(args: string[], outputFile?: string): Promise<void> {
   if (runE2e) {
     report.tiers.e2e = await runE2eBenchmarks();
   }
+  if (runCache) {
+    report.tiers.cache = runCacheBenchmarks();
+  }
 
   // 如果没有指定 flags，默认跑 micro + scenarios
   if (!runMicro && !runScenarios && !runE2e) {
@@ -321,6 +327,11 @@ async function cmdBench(args: string[], outputFile?: string): Promise<void> {
   // 成本估算
   if (report.tiers.scenarios) {
     printCostEstimates(report.tiers.scenarios);
+  }
+
+  // 缓存基准输出
+  if (report.tiers.cache) {
+    printCacheSummary(report.tiers.cache);
   }
 
   // 导出报告
@@ -510,6 +521,51 @@ function printCostEstimates(scenarios: ScenarioResult[]): void {
   }
   console.log();
 }
+
+// ---- 缓存基准输出 ----
+
+function printCacheSummary(results: CacheScenarioResult[]): void {
+  console.log($.b('  \u26a1 Tier 4: Cache Benchmarks — The Real NL Killer\n'));
+
+  console.log($.gr('  Core insight: Structured messages are DETERMINISTIC.'));
+  console.log($.gr('  Same (from, to, type, payload) = same encoded bytes.'));
+  console.log($.gr('  Natural language changes every time = ZERO cacheability.'));
+  console.log();
+
+  console.log(`  ${'Scenario'.padEnd(22)} ${'No Cache(us)'.padEnd(14)} ${'Cached(us)'.padEnd(14)} ${'Speedup'.padEnd(10)} ${'Hit Rate'.padEnd(10)} ${'NL Equivalent'}`);
+  console.log(`  ${''.padEnd(22, '-')} ${''.padEnd(14, '-')} ${''.padEnd(14, '-')} ${''.padEnd(10, '-')} ${''.padEnd(10, '-')} ${''.padEnd(30, '-')}`);
+
+  for (const r of results) {
+    const speedColor = parseFloat(r.speedup) > 3 ? $.g : parseFloat(r.speedup) > 1.5 ? $.y : $.gr;
+    const hitColor = parseFloat(r.hitRate) > 80 ? $.g : parseFloat(r.hitRate) > 50 ? $.y : $.gr;
+    console.log(
+      `  ${r.name.padEnd(22)}` +
+      `${String(r.withoutCache.avgUs).padEnd(14)}` +
+      `${String(r.withCache.avgUs).padEnd(14)}` +
+      `${speedColor(r.speedup.padStart(8))} ` +
+      `${hitColor(r.hitRate.padStart(8))} ` +
+      `${$.gr(r.nlEquivalentCost.substring(0, 28))}`
+    );
+  }
+
+  console.log();
+  console.log($.b('  \u{1f4a1} Cache Insights:'));
+  for (const r of results) {
+    console.log(`  \u25b8 ${r.name}: ${$.b(r.insight)}`);
+    console.log(`     Cache: ${$.gr(r.cacheBehavior)}`);
+    console.log(`     NL:    ${$.y(r.nlEquivalentCost)}`);
+    console.log();
+  }
+
+  const avgSpeed = results.reduce((a, r) => a + parseFloat(r.speedup || '1'), 0) / results.length;
+  const avgHit = results.reduce((a, r) => a + parseFloat(r.hitRate || '0'), 0) / results.length;
+  console.log($.b('  Summary (Cache):'));
+  console.log(`  Avg speedup: ${$.g(avgSpeed.toFixed(1) + 'x')}  |  Avg hit rate: ${$.g(avgHit.toFixed(1) + '%')}`);
+  console.log(`  NL cacheability: ${$.y('0%')} — non-deterministic by nature`);
+  console.log(`  ${$.g('\u2605 This is the killer: structured messages are free to repeat.')}`);
+  console.log();
+}
+
 function showHelp(): void {
   console.log($.b(`\n  neca2 v${VERSION} — Silent Protocol CLI`));
   console.log();
