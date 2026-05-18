@@ -2,8 +2,8 @@
 // ---- neca2 MCP Server ----
 // Silent Protocol 紧凑协议参考实现
 //
-// v0.5.0 — DeepSeek Exclusive v2
-// 新增：Stream Protocol v2、自适应学习引擎、零开销协议扩展
+// v0.8.0 — DeepSeek Exclusive v2 + Intent Execution
+// 新增：意图执行协议（Intent Parser / Planner / Executor / Feedback）
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -24,6 +24,7 @@ import { adaptiveEngine } from './relay/adaptive-learning.js';
 import { zeroOverhead } from './protocol/zero-overhead.js';
 import { multiplexedConnection, compareProtocolVersions } from './protocol/stream-protocol.js';
 import { advancedCache } from './relay/cache-advanced.js';
+import { cleanupOldExecutions } from './relay/intent-executor.js';
 import type { Message } from './protocol/types.js';
 
 const PID_FILE = process.platform === 'win32'
@@ -125,6 +126,10 @@ async function main(): Promise<void> {
   console.error(chalk.gray(`[neca2] v2 advanced cache: ${cacheStats.semantic.patternCount} patterns, ${cacheStats.flow.rules} flow rules`));
   logger.info('v2 Advanced cache ready', { patterns: cacheStats.semantic.patternCount, rules: cacheStats.flow.rules }, { module: 'v2' });
 
+  // 4. 意图执行引擎
+  console.error(chalk.gray('[neca2] intent execution engine ready'));
+  logger.info('Intent execution engine initialized', {}, { module: 'intent' });
+
   // 黑板报初始化
   startBlackboardSync();
   const bb = readBlackboard();
@@ -159,8 +164,14 @@ async function main(): Promise<void> {
 
   const bridgeInfo = getBridgeStats();
   console.error(chalk.cyan(`[neca2] context: ${mem.projectName} @ ${mem.projectPhase} | user: ${mem.userIdentity.name}`));
-  console.error(chalk.gray(`[neca2] bridge: necaAlive=${bridgeInfo.necaAlive} | v2: stream+learning+zero`));
-  console.error(chalk.magenta('[neca2] DeepSeek Exclusive v2 features active: stream-protocol | adaptive-learning | zero-overhead'));
+  console.error(chalk.gray(`[neca2] bridge: necaAlive=${bridgeInfo.necaAlive} | v2: stream+learning+zero+intent`));
+  console.error(chalk.magenta('[neca2] DeepSeek Exclusive v2 features active: stream-protocol | adaptive-learning | zero-overhead | intent-execution'));
+
+  // 定时清理过期执行记录
+  setInterval(() => {
+    const cleaned = cleanupOldExecutions(30 * 60 * 1000);
+    if (cleaned > 0) logger.info('Cleaned old executions', { count: cleaned }, { module: 'intent' });
+  }, 5 * 60 * 1000);
 }
 
 main().catch((err) => {

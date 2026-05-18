@@ -18,6 +18,18 @@ import { adaptiveEngine } from './relay/adaptive-learning.js';
 import { zeroOverhead } from './protocol/zero-overhead.js';
 import { multiplexedConnection, compareProtocolVersions } from './protocol/stream-protocol.js';
 import { advancedCache } from './relay/cache-advanced.js';
+import {
+  executeFromNaturalLanguage,
+  getExecutionState,
+  cancelExecution,
+  pauseExecution,
+  resumeExecution,
+  submitFeedback,
+  listExecutions,
+  cleanupOldExecutions,
+} from './relay/intent-executor.js';
+import { parseIntent } from './relay/intent-parser.js';
+import { aggregateFeedback, getAcceptancePrompt } from './relay/feedback-aggregator.js';
 import type { Message } from './protocol/types.js';
 
 const AGENT_NAMES = STANDARD_AGENTS.map(a => a) as [string, ...string[]];
@@ -147,6 +159,7 @@ export const tools = {
             streamProtocol: true,
             adaptiveLearning: true,
             zeroOverhead: true,
+            intentExecution: true,
           },
         },
       };
@@ -170,6 +183,7 @@ export const tools = {
             'auto-persist', 'structured-logging', 'codec-factory', 'router-scheduler',
             'cli', 'shared-blackboard', 'neca-bridge',
             'v2-stream-protocol', 'v2-adaptive-learning', 'v2-zero-overhead',
+            'intent-execution',
           ],
           sessionStats: sessionStats(),
           retryQueueStats: retryQueue.stats,
@@ -177,6 +191,9 @@ export const tools = {
           bridge: getBridgeStats(),
           blackboard: getBlackboardSummary(),
           memory: ctx,
+          intentExecution: {
+            activeExecutions: listExecutions().length,
+          },
         },
       };
     },
@@ -191,7 +208,6 @@ export const tools = {
       const binaryBytes = binaryCodec.encode(demoMsg).length;
       const ratio = compressionRatio(jsonBytes, binaryBytes);
 
-      // v2 版本对比
       const v2Compare = compareProtocolVersions(demoMessages());
 
       return {
@@ -209,6 +225,7 @@ export const tools = {
             'codec-factory', 'router-scheduler', 'cli',
             'shared-blackboard', 'neca-bridge',
             'v2-stream-protocol', 'v2-adaptive-learning', 'v2-zero-overhead',
+            'intent-execution',
           ],
           compressionDemo: {
             messageType: 'exec',
@@ -294,10 +311,10 @@ export const tools = {
           fs.writeFileSync(tmpFile, content, 'utf-8');
           if (verify.checkSyntax || verify.checkCompile) {
             let cmd = '';
-            if (verify.language === 'rust' && verify.checkCompile) cmd = `rustc --edition 2021 --crate-type lib "${tmpFile}" -o "${tmpFile}.out" 2>&1`;
-            else if (verify.language === 'rust') cmd = `rustfmt --check "${tmpFile}" 2>&1`;
-            else if (verify.language === 'typescript' && verify.checkCompile) cmd = `npx tsc --noEmit --strict "${tmpFile}" 2>&1`;
-            else if (verify.language === 'python' && verify.checkSyntax) cmd = `python -m py_compile "${tmpFile}" 2>&1`;
+            if (verify.language === 'rust' && verify.checkCompile) cmd = `rustc --edition 2021 --crate-type lib \"${tmpFile}\" -o \"${tmpFile}.out\" 2>&1`;
+            else if (verify.language === 'rust') cmd = `rustfmt --check \"${tmpFile}\" 2>&1`;
+            else if (verify.language === 'typescript' && verify.checkCompile) cmd = `npx tsc --noEmit --strict \"${tmpFile}\" 2>&1`;
+            else if (verify.language === 'python' && verify.checkSyntax) cmd = `python -m py_compile \"${tmpFile}\" 2>&1`;
             else if (verify.testCmd) cmd = verify.testCmd.replace('{file}', tmpFile);
             if (cmd) {
               try { execSync(cmd, { timeout: 30000, windowsHide: true, encoding: 'utf-8' }); result.verified = true; }
@@ -494,6 +511,121 @@ export const tools = {
             piggybacking: 'Control info (ack, status) embedded in data frame flags. No separate message needed.',
             deltaEncoding: 'Only changed fields between consecutive messages are sent. Fields unchanged since last message are inferred.',
           },
+        },
+      };
+    },
+  },
+
+  // ============================================================
+  // 里程碑 6：意图执行协议
+  // ============================================================
+
+  neca2_intent_exec: {
+    description: '[Intent Execution] 从自然语言开始执行。说你要什么，系统自动拆解为任务序列并执行。',
+    parameters: z.object({
+      text: z.string().describe('自然语言描述你要做的事情，如"帮我爬一下AI论文"'),
+    }),
+    handler: async (args: any): Promise<{ success: boolean; data: unknown; error?: string }> => {
+      const state = await executeFromNaturalLanguage(args.text);
+      if (state.status === 'needs_clarification') {
+        return { success: false, error: state.clarification || '需要更详细的描述', data: { status: state.status, executionId: state.id } };
+      }
+      const plan = state.plan!;
+      return {
+        success: true,
+        data: {
+          status: state.status,
+          executionId: state.id,
+          intent: { type: plan.intent.type, target: plan.intent.primaryTarget, confidence: plan.intent.confidence },
+          plan: { steps: plan.steps.length, estimatedTime: plan.estimatedTotalTime },
+        },
+      };
+    },
+  },
+
+  neca2_intent_status: {
+    description: '[Intent Execution] 查询意图执行状态。',
+    parameters: z.object({
+      executionId: z.string().describe('执行ID'),
+    }),
+    handler: async (args: any): Promise<{ success: boolean; data: unknown; error?: string }> => {
+      const state = getExecutionState(args.executionId);
+      if (!state) return { success: false, error: '执行记录未找到', data: null };
+
+      let result = null;
+      if (state.status === 'completed' && state.plan) {
+        result = aggregateFeedback(state.plan, state.stepResults);
+      }
+
+      return {
+        success: true,
+        data: {
+          status: state.status,
+          executionId: state.id,
+          intent: state.plan ? { type: state.plan.intent.type, rawText: state.plan.intent.rawText } : null,
+          currentStep: state.currentStepIndex,
+          totalSteps: state.plan?.steps.length || 0,
+          error: state.error,
+          duration: state.endTime ? state.endTime - state.startTime : Date.now() - state.startTime,
+          result,
+          acceptancePrompt: result ? getAcceptancePrompt(result) : null,
+        },
+      };
+    },
+  },
+
+  neca2_intent_feedback: {
+    description: '[Intent Execution] 尝菜式反馈。说"可以"=验收，"改xxx"=调整，"重来"=重新执行。',
+    parameters: z.object({
+      executionId: z.string().describe('执行ID'),
+      feedback: z.string().describe('你的反馈：可以 / 改这里 / 重来'),
+    }),
+    handler: async (args: any): Promise<{ success: boolean; data: unknown; error?: string }> => {
+      const result = await submitFeedback(args.executionId, args.feedback);
+      return {
+        success: true,
+        data: {
+          status: result.status,
+          adjusted: result.adjusted,
+          result: result.result,
+          acceptancePrompt: result.result ? getAcceptancePrompt(result.result) : null,
+        },
+      };
+    },
+  },
+
+  neca2_intent_cancel: {
+    description: '[Intent Execution] 取消正在执行的意图。',
+    parameters: z.object({
+      executionId: z.string().describe('执行ID'),
+    }),
+    handler: async (args: any): Promise<{ success: boolean; data: unknown; error?: string }> => {
+      const cancelled = cancelExecution(args.executionId);
+      return { success: cancelled, data: { cancelled, executionId: args.executionId } };
+    },
+  },
+
+  neca2_intent_list: {
+    description: '[Intent Execution] 列出所有意图执行记录。',
+    parameters: z.object({
+      status: z.enum(['planning', 'running', 'paused', 'completed', 'failed', 'cancelled', 'needs_clarification'] as const).optional().describe('按状态过滤'),
+    }),
+    handler: async (args: any): Promise<{ success: boolean; data: unknown; error?: string }> => {
+      const executions = listExecutions(args.status as any);
+      return {
+        success: true,
+        data: {
+          total: executions.length,
+          executions: executions.map(e => ({
+            id: e.id,
+            status: e.status,
+            intent: e.plan ? e.plan.intent.type : 'unknown',
+            rawText: e.plan?.intent.rawText?.substring(0, 80) || '',
+            stepsDone: e.currentStepIndex,
+            stepsTotal: e.plan?.steps.length || 0,
+            age: Date.now() - e.startTime,
+            error: e.error,
+          })),
         },
       };
     },
