@@ -7,6 +7,7 @@
 //   cloud_ds      → relay 到 DeepSeek API
 //   local_claude  → spawn 本地子进程执行（exec）/ 或 spawn claude 处理（delegate/query）
 //   user          → 入待处理队列，等待 poll
+//   tork_local    → 转发到本地 TORK 实例（TCP socket）
 //   ext_*         → 根据注册的外部 Agent 转发
 
 import type { Message, SessionRecord, AnyPayload } from '../protocol/types.js';
@@ -20,6 +21,7 @@ import {
   recordAgentInteraction, setAgentLoad, adaptive,
   getBudget, spendBudget,
 } from '../meta/orchestrator.js';
+import { routeToTork, torkAgent } from './tork-agent.js';
 
 const pendingDeliveries = new Map<string, Message[]>();
 
@@ -52,6 +54,7 @@ export async function routeMessage(msg: Message): Promise<SessionRecord> {
       case 'cloud_claude': result = await routeToCloud(session, 'claude'); break;
       case 'cloud_ds': result = await routeToCloud(session, 'deepseek'); break;
       case 'local_claude': result = await routeToLocalClaude(session); break;
+      case 'tork_local': result = await routeToTork(session); break;
       case 'user': result = routeToUser(session); break;
       default:
         if ((msg.to as string).startsWith('ext_')) {

@@ -8,6 +8,7 @@ export type AgentId =
   | 'cloud_claude'
   | 'user'
   | 'neca'
+  | 'tork_local'
 
 /** 消息类型 */
 export type MessageType =
@@ -48,19 +49,8 @@ export interface DelegatePayload { to: string; instruction: string; priority?: '
 export interface QueryPayload { question: string; context?: string; maxTokens?: number; temperature?: number; answer?: string; tokensUsed?: number; model?: string; }
 export interface ReportPayload { taskId: string; status: 'running' | 'completed' | 'failed' | 'cancelled'; result?: unknown; error?: string; artifacts?: string[]; duration?: number; }
 export interface CancelPayload { taskId: string; reason?: string; }
-export interface PingPayload {}
-export interface PongPayload { status: 'ok' | 'busy' | 'degraded'; uptime: number; queueDepth: number; memoryUsage?: number; }
-export interface ErrorPayload { code: string; message: string; originalMsgId?: string; details?: unknown; hint?: string; }
-export interface AckPayload { originalMsgId: string; status: 'accepted' | 'rejected'; reason?: string; }
-export interface InitPayload { version: number; supportedTypes: string[]; codecs: string[]; features: string[]; }
 
-/** 消息载荷联合 */
-export type AnyPayload =
-  | ExecPayload | ReadPayload | WritePayload | SearchPayload
-  | DelegatePayload | QueryPayload | ReportPayload | CancelPayload
-  | PingPayload | PongPayload | ErrorPayload | AckPayload | InitPayload
-
-/** 标准消息结构 */
+/** 消息完整定义 */
 export interface Message<T extends AnyPayload = AnyPayload> {
   ver: number;
   id: string;
@@ -72,6 +62,18 @@ export interface Message<T extends AnyPayload = AnyPayload> {
   priority?: 'low' | 'normal' | 'high';
   ts: number;
 }
+
+/** 统一载荷类型 */
+export type AnyPayload =
+  | ExecPayload
+  | ReadPayload
+  | WritePayload
+  | SearchPayload
+  | DelegatePayload
+  | QueryPayload
+  | ReportPayload
+  | CancelPayload
+  | { [key: string]: unknown }
 
 /** 会话记录（session.ts 实际使用的结构） */
 export interface SessionRecord {
@@ -90,7 +92,7 @@ export interface SessionRecord {
 }
 
 /** 预定义 agent 标识列表 */
-export const STANDARD_AGENTS = ['cloud_ds', 'local_claude', 'cloud_claude', 'user', 'neca'] as const;
+export const STANDARD_AGENTS = ['cloud_ds', 'local_claude', 'cloud_claude', 'user', 'neca', 'tork_local'] as const;
 
 /** 标准消息类型列表 */
 export const STANDARD_MESSAGE_TYPES = [
@@ -99,7 +101,7 @@ export const STANDARD_MESSAGE_TYPES = [
   'ping', 'pong', 'error', 'ack', 'init',
 ] as const;
 
-/** 错误码定义 */
+/** 错误码 */
 export const ERROR_CODES = {
   TIMEOUT: 'TIMEOUT',
   PATH_NOT_ALLOWED: 'PATH_NOT_ALLOWED',
@@ -113,6 +115,24 @@ export const ERROR_CODES = {
   SESSION_LOST: 'SESSION_LOST',
   TARGET_UNREACHABLE: 'TARGET_UNREACHABLE',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
+  INVALID_VER: 'INVALID_VER',
+  INVALID_ID: 'INVALID_ID',
+  INVALID_FROM: 'INVALID_FROM',
+  INVALID_TO: 'INVALID_TO',
+  INVALID_TYPE: 'INVALID_TYPE',
+  MISSING_PAYLOAD: 'MISSING_PAYLOAD',
+  MALFORMED_JSON: 'MALFORMED_JSON',
+  INVALID_PAYLOAD: 'INVALID_PAYLOAD',
+  UNKNOWN_TARGET: 'UNKNOWN_TARGET',
+  DELIVERY_FAILED: 'DELIVERY_FAILED',
+  NO_RESPONSE: 'NO_RESPONSE',
+  SESSION_EXPIRED: 'SESSION_EXPIRED',
+  SESSION_NOT_FOUND: 'SESSION_NOT_FOUND',
+  SESSION_CANCELLED: 'SESSION_CANCELLED',
+  PERMISSION_DENIED: 'PERMISSION_DENIED',
+  CANCELLED: 'CANCELLED',
+  NOT_IMPLEMENTED: 'NOT_IMPLEMENTED',
+  API_QUOTA_EXCEEDED: 'API_QUOTA_EXCEEDED',
 } as const;
 
 /**
@@ -125,11 +145,6 @@ export interface ValidationResult {
 
 /**
  * 校验消息是否合法
- * - ver 必须存在且为数字
- * - id 不能为空
- * - from 和 to 不能为空
- * - type 必须是合法的 MessageType
- * - exec 类型必须包含 cmd
  */
 export function validateMessage(msg: Partial<Message>): ValidationResult {
   if (!msg.ver || typeof msg.ver !== 'number') {

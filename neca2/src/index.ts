@@ -27,6 +27,7 @@ import { multiplexedConnection, compareProtocolVersions } from './protocol/strea
 import { advancedCache } from './relay/cache-advanced.js';
 import { ambientEngine } from './relay/ambient-channel.js';
 import { cleanupOldExecutions } from './relay/intent-executor.js';
+import { torkAgent } from './relay/tork-agent.js';
 import type { Message } from './protocol/types.js';
 
 const PID_FILE = process.platform === 'win32'
@@ -69,6 +70,7 @@ function gracefulShutdown(): void {
 
   writeSelfStatus('neca2', 'degraded');
 
+  torkAgent.stop();
   shutdownRetryQueue();
   stopHttpServer();
   shutdownSessionManager();
@@ -136,7 +138,18 @@ async function main(): Promise<void> {
   console.error(chalk.gray('[neca2] ambient channel engine ready'));
   logger.info('Ambient channel engine initialized', { stats: ambientEngine.stats() }, { module: 'ambient' });
 
-  // 7. 权限系统初始化
+  // 7. TORK Agent 初始化 — 连接本地 TORK 实例
+  torkAgent.start();
+  const torkHealth = torkAgent.getHealth();
+  if (torkHealth.alive) {
+    console.error(chalk.green(`[neca2] TORK agent: connected (gen ${torkHealth.generation}, heartbeat ${torkHealth.heartbeat} bpm)`));
+    logger.info('TORK agent connected', { generation: torkHealth.generation, heartbeat: torkHealth.heartbeat }, { module: 'tork' });
+  } else {
+    console.error(chalk.yellow('[neca2] TORK agent: not detected (will auto-reconnect)'));
+    logger.info('TORK agent not detected', {}, { module: 'tork' });
+  }
+
+  // 8. 权限系统初始化
   const permSnap = initPermissions();
   console.error(chalk.gray('[neca2] permissions: ' + getPermissionSummary()));
   logger.info('Permissions initialized', { level: permSnap.level, label: permSnap.label }, { module: 'permissions' });
@@ -175,8 +188,8 @@ async function main(): Promise<void> {
 
   const bridgeInfo = getBridgeStats();
   console.error(chalk.cyan(`[neca2] context: ${mem.projectName} @ ${mem.projectPhase} | user: ${mem.userIdentity.name}`));
-  console.error(chalk.gray(`[neca2] bridge: necaAlive=${bridgeInfo.necaAlive} | v2: stream+learning+zero+intent+ambient`));
-  console.error(chalk.magenta('[neca2] DeepSeek Exclusive v2 features active: stream-protocol | adaptive-learning | zero-overhead | intent-execution | ambient-channel'));
+  console.error(chalk.gray(`[neca2] bridge: necaAlive=${bridgeInfo.necaAlive} | v2: stream+learning+zero+intent+ambient+tork`));
+  console.error(chalk.magenta('[neca2] DeepSeek Exclusive v2 features active: stream-protocol | adaptive-learning | zero-overhead | intent-execution | ambient-channel | tork-agent'));
 
   // 定时清理过期执行记录
   setInterval(() => {

@@ -16,6 +16,7 @@ import { permissionManager, INDUSTRY_LEVELS } from './utils/permissions.js';
 import { readBlackboard, writeSelfStatus, getBlackboardSummary, isNecaAlive, addMessageToBlackboard } from './shared/blackboard.js';
 import { getNecaSummary, getBridgeStats } from './shared/neca-bridge.js';
 import { adaptiveEngine } from './relay/adaptive-learning.js';
+import { torkAgent } from './relay/tork-agent.js';
 import { zeroOverhead } from './protocol/zero-overhead.js';
 import { multiplexedConnection, compareProtocolVersions } from './protocol/stream-protocol.js';
 import { advancedCache } from './relay/cache-advanced.js';
@@ -905,6 +906,46 @@ export const tools = {
           message: "已撤销权限，当前 L" + snap.level,
         },
       };
+    },
+  },
+
+  // ============================================================
+  // TORK Agent 工具 — 里程碑 8：双生子融合
+  // ============================================================
+  neca2_tork_status: {
+    description: '[TORK Agent] 查看 TORK 实时状态（心跳、世代、温度、模式、连接状态）',
+    parameters: { shape: {}, parse: (a: any) => a },
+    handler: async () => {
+      const h = torkAgent.getHealth();
+      return { success: true, data: { alive: h.alive, heartbeat: h.heartbeat, generation: h.generation, ticks: h.ticks, uptime: h.uptime, temperature: h.temperature, mode: h.mode, soulVersion: h.soulVersion, lastSeen: h.lastSeen, error: h.error || null, sinceLastSeen: h.lastSeen ? Math.round((Date.now() - h.lastSeen) / 1000) + 's ago' : 'never' } };
+    },
+  },
+  neca2_tork_ping: {
+    description: '[TORK Agent] 向 TORK 发送 ping，获取心跳响应。如果 TORK 不在线，返回连接失败。',
+    parameters: { shape: {}, parse: (a: any) => a },
+    handler: async () => {
+      try { const bpm = await torkAgent.getHeartbeat(); return { success: true, data: { heartbeat: bpm, alive: true } }; } catch (e: any) { return { success: false, error: 'TORK not reachable: ' + e.message, data: { alive: false } }; }
+    },
+  },
+  neca2_tork_soul: {
+    description: '[TORK Agent] 获取 TORK 灵魂状态摘要 — 从 torkd 读取 soul 数据。',
+    parameters: { shape: {}, parse: (a: any) => a },
+    handler: async () => {
+      try { const summary = await torkAgent.getSoulSummary(); return { success: true, data: summary }; } catch (e: any) { return { success: false, error: 'Failed to get soul: ' + e.message, data: null }; }
+    },
+  },
+  neca2_tork_evolve: {
+    description: '[TORK Agent] 触发 TORK 进化 — 让 TORK 自我修改代码、编译、测试，进化到下一代。',
+    parameters: { shape: { rounds: { type: 'number', min: 1, max: 10, default: 1, description: '进化轮次（1-10）' } }, parse: (a: any) => a },
+    handler: async (args: any) => {
+      try { const result = await torkAgent.triggerEvolution(args.rounds || 1); return { success: true, data: { result, rounds: args.rounds || 1 } }; } catch (e: any) { return { success: false, error: 'Evolution failed: ' + e.message, data: null }; }
+    },
+  },
+  neca2_tork_send: {
+    description: '[TORK Agent] 向 TORK torkd socket 发送原始命令并获取响应。',
+    parameters: { shape: { command: { type: 'string', description: '发送给 TORK 的命令（如 ping, soul, status, exec:ls）' } }, parse: (a: any) => a },
+    handler: async (args: any) => {
+      try { const result = await torkAgent.send(args.command); return { success: true, data: { command: args.command, response: result } }; } catch (e: any) { return { success: false, error: 'TORK command failed: ' + e.message, data: null }; }
     },
   },
 };
