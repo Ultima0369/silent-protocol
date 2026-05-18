@@ -25,6 +25,7 @@ import { adaptiveEngine } from './relay/adaptive-learning.js';
 import { zeroOverhead } from './protocol/zero-overhead.js';
 import { multiplexedConnection, compareProtocolVersions } from './protocol/stream-protocol.js';
 import { advancedCache } from './relay/cache-advanced.js';
+import { ambientEngine } from './relay/ambient-channel.js';
 import { cleanupOldExecutions } from './relay/intent-executor.js';
 import type { Message } from './protocol/types.js';
 
@@ -131,7 +132,11 @@ async function main(): Promise<void> {
   console.error(chalk.gray('[neca2] intent execution engine ready'));
   logger.info('Intent execution engine initialized', {}, { module: 'intent' });
 
-  // 5. 权限系统初始化
+  // 6. 环境通道引擎初始化
+  console.error(chalk.gray('[neca2] ambient channel engine ready'));
+  logger.info('Ambient channel engine initialized', { stats: ambientEngine.stats() }, { module: 'ambient' });
+
+  // 7. 权限系统初始化
   const permSnap = initPermissions();
   console.error(chalk.gray('[neca2] permissions: ' + getPermissionSummary()));
   logger.info('Permissions initialized', { level: permSnap.level, label: permSnap.label }, { module: 'permissions' });
@@ -170,8 +175,8 @@ async function main(): Promise<void> {
 
   const bridgeInfo = getBridgeStats();
   console.error(chalk.cyan(`[neca2] context: ${mem.projectName} @ ${mem.projectPhase} | user: ${mem.userIdentity.name}`));
-  console.error(chalk.gray(`[neca2] bridge: necaAlive=${bridgeInfo.necaAlive} | v2: stream+learning+zero+intent`));
-  console.error(chalk.magenta('[neca2] DeepSeek Exclusive v2 features active: stream-protocol | adaptive-learning | zero-overhead | intent-execution'));
+  console.error(chalk.gray(`[neca2] bridge: necaAlive=${bridgeInfo.necaAlive} | v2: stream+learning+zero+intent+ambient`));
+  console.error(chalk.magenta('[neca2] DeepSeek Exclusive v2 features active: stream-protocol | adaptive-learning | zero-overhead | intent-execution | ambient-channel'));
 
   // 定时清理过期执行记录
   setInterval(() => {

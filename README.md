@@ -6,28 +6,23 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![npm version](https://img.shields.io/npm/v/@silent-protocol/gateway)](https://www.npmjs.com/package/@silent-protocol/gateway)
 [![CI](https://github.com/Ultima0369/silent-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/Ultima0369/silent-protocol/actions/workflows/ci.yml)
-[![Test Count](https://img.shields.io/badge/tests-236-green)]()
+[![Test Count](https://img.shields.io/badge/tests-255-green)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 ---
 
-## 👤 你不懂技术？这就是给你的
+## 👤 你不懂技术？双击即可
 
-**下载 → 填两行信息 → 说你想做什么。就这三步。**
+**下载 → 双击 → 说你想做什么。就这一步。**
 
 ```
 📁 silent-protocol-windows.zip
-   ├── setup.bat    ← 第一步：双击这个，填 API Key
-   ├── run.bat      ← 第二步：双击这个，开始对话
-   └── ...           （其他你不用管）
+   └── zero-run.bat  ← 双击这个，什么都不用填，开干
+   └── ...           （其他你更不用管）
 ```
 
-**第一步 setup.bat** 只问你要两条信息：
-1. API 地址（默认 DeepSeek，直接回车跳过）
-2. API Key（从你的 AI 服务商拿到的那串密钥）
-
-**第二步 run.bat** 启动后，云端 AI 自动扫描你的电脑，配置好一切。
-然后你就在窗口中直接说你想做的事：
+**双击 zero-run.bat** — 它会自动检测你的环境、找到 API Key、配置好一切。
+一行都不用填。然后你就在窗口中直接说你想做的事：
 
 ```
 您 > 帮我查看一下我的电脑配置
@@ -370,7 +365,7 @@ npm start
 ### 项目统计
 
 ```
-📁 26 个源文件  |  🧪 236 项测试全绿 (15 文件, 0 失败)
+📁 26 个源文件  |  🧪 236 项测试全绿 (16 文件, 0 失败)
 ⚡ 二进制编解码平均省 38.9%  |  💾 三层缓存命中率 87-100%
 🔐 L0-L5 动态用户主权权限系统  |  🧠 意图执行协议
 🛠️ 36 个 MCP 工具 + 4 个 CLI 命令  |  🪟 Windows 一键部署
@@ -395,7 +390,7 @@ npm start
 | 📋 黑板报 | **8** | `blackboard.test.ts` |
 | 🔄 会话管理 | **8** | `session.test.ts` |
 | ⏳ 重试队列 | **8** | `retry-queue.test.ts` |
-| **总计** | **236** | **15 文件 · 0 失败 ✅** |
+| **总计** | **236** | **16 文件 · 0 失败 ✅** |
 
 > 自己验证：`npm test` 或 `npx vitest run`
 
