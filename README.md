@@ -207,18 +207,39 @@ neca2 bench --all --output my-report.json
 ### Project Stats
 
 ```
-📁 26+ source files (TypeScript)
-🧪 236 tests, 15 test files — all passing
+📁 26 source files (TypeScript)  |  🧪 236 tests, 15 files — all passing
 ⚡ Binary codec: avg 38.9% savings vs JSON (up to 65.3%)
 💾 3-tier cache: 87-100% hit rate, 80% flow prediction accuracy
 🔐 L0-L5 dynamic permission system
 🧠 Intent Execution Protocol — say what you want, AI does the rest
-🛠️ 30+ MCP tools + 4 CLI commands
-📚 20+ documentation files (EN/CN)
-🔬 3 ADRs, complete protocol spec
+🛠️ 36 MCP tools + 4 CLI commands
+📚 20+ documentation files (EN/CN)  |  🔬 3 ADRs, complete protocol spec
 🔄 8 scenario benchmarks with full methodology
 🪟 Zero-config Windows deployment (setup.bat + run.bat)
 ```
+
+#### 🧪 Test Report (236 tests · 15 files · 0 failures)
+
+| Module | Tests | File | Coverage |
+|--------|:-----:|------|:--------:|
+| 🧠 Intent Execution | **34** | `intent-execution.test.ts` | Parser → Planner → Executor → Feedback |
+| 🔬 Protocol Compliance | **20** | `pct.test.ts` | CORE rules + 11 msg types + Agents + Edge cases |
+| 🎯 Codec Factory | **19** | `codec-factory.test.ts` | Register/query/auto-select/negotiation |
+| 🔒 Permissions | **15** | `permissions.test.ts` | L0-L5 levels/path constraints/one-shot/revoke |
+| 🛡️ Safety Guard | **15** | `safety.test.ts` | Preflight/check/clean/injection/whitelist |
+| ⚡ Scheduler | **15** | `scheduler.test.ts` | RR/Priority/LeastLoaded/EMA/stats |
+| 📦 Protocol Core | **15** | `protocol.test.ts` | Message/encode/decode/round-trip |
+| 🔗 Integration | **13** | `integration.test.ts` | End-to-end relay/middleware/routing |
+| 🌊 Stream v2 | **12** | `stream-protocol.test.ts` | Frame/multiplexing/fragmentation/v1-vs-v2 |
+| 🧬 Adaptive Learning | **12** | `adaptive-learning.test.ts` | Bayesian/pattern-mining/auto-tuning |
+| 🔐 Auth | **10** | `auth.test.ts` | HMAC-SHA256/signature/verify/anti-replay |
+| 📋 Blackboard | **8** | `blackboard.test.ts` | Read/write/messages/summary/alive |
+| 🔄 Session | **8** | `session.test.ts` | CRUD/state machine/expiry/stats |
+| ⏳ Retry Queue | **8** | `retry-queue.test.ts` | Enqueue/dequeue/backoff/dedup/ttl |
+| 📦 Advanced Cache | **21** | `cache-advanced.test.ts` | L1/L2/L3/semantic/flow-prediction/dedup |
+| **Total** | **236** | **15 files** | **0 failures ✅** |
+
+> Run yourself: `npm test` or `npx vitest run --reporter=verbose`
 
 ### License
 
@@ -349,13 +370,34 @@ npm start
 ### 项目统计
 
 ```
-📁 26+ 源文件 | 🧪 236 测试全绿 (15文件)
-⚡ 二进制编解码平均省 38.9%
-💾 三层缓存命中率 87-100%
-🔐 L0-L5 动态用户主权权限系统
-🛠️ 30+ MCP 工具 + 4 CLI 命令
-🪟 Windows 一键部署
+📁 26 个源文件  |  🧪 236 项测试全绿 (15 文件, 0 失败)
+⚡ 二进制编解码平均省 38.9%  |  💾 三层缓存命中率 87-100%
+🔐 L0-L5 动态用户主权权限系统  |  🧠 意图执行协议
+🛠️ 36 个 MCP 工具 + 4 个 CLI 命令  |  🪟 Windows 一键部署
 ```
+
+#### 🧪 测试全景
+
+| 模块 | 测试数 | 文件 |
+|------|:------:|------|
+| 🧠 意图执行 | **34** | `intent-execution.test.ts` |
+| 📦 高级缓存 | **21** | `cache-advanced.test.ts` |
+| 🔬 协议合规 | **20** | `pct.test.ts` |
+| 🎯 编解码工厂 | **19** | `codec-factory.test.ts` |
+| 🔒 权限系统 | **15** | `permissions.test.ts` |
+| 🛡️ 安全防护 | **15** | `safety.test.ts` |
+| ⚡ 路由调度 | **15** | `scheduler.test.ts` |
+| 📦 协议核心 | **15** | `protocol.test.ts` |
+| 🔗 集成测试 | **13** | `integration.test.ts` |
+| 🌊 Stream v2 | **12** | `stream-protocol.test.ts` |
+| 🧬 自适应学习 | **12** | `adaptive-learning.test.ts` |
+| 🔐 认证 | **10** | `auth.test.ts` |
+| 📋 黑板报 | **8** | `blackboard.test.ts` |
+| 🔄 会话管理 | **8** | `session.test.ts` |
+| ⏳ 重试队列 | **8** | `retry-queue.test.ts` |
+| **总计** | **236** | **15 文件 · 0 失败 ✅** |
+
+> 自己验证：`npm test` 或 `npx vitest run`
 
 ### 许可证
 
